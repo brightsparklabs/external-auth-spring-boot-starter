@@ -1,0 +1,40 @@
+= External Auth Spring Boot Starter
+:toc: left
+:sectnums:
+:sectnumlevels: 4
+
+A Spring Boot starter which allows your service to trust authentication from an external identity provider.
+
+Currently focused around supporting [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy).
+
+== Compatibility
+
+[cols="3,3,3,3"]
+|===
+| Bundle Version | Spring Boot Version | Java Version | Notes
+
+| 1.x.y          | TBC                |  TBC          | Initial release
+| 0.x.y          | TBC                |  TBC          | Initial release
+|===
+
+== Usage
+
+TBD
+
+== Development
+
+- Publish new versions via:
+
+```bash
+# Set env vars.
+export ORG_GRADLE_PROJECT_signingKey=<secrets.PGP_SIGNING_KEY>
+export ORG_GRADLE_PROJECT_signingPassword=<secrets.PGP_SIGNING_PASSWORD>
+export ORG_GRADLE_PROJECT_mavenCentralUsername=<secrets.MAVEN_CENTRAL_USERNAME>
+export ORG_GRADLE_PROJECT_mavenCentralPassword=<secrets.MAVEN_CENTRAL_PASSWORD>
+# Run the publishToMavenCentral gradle task
+./gradlew publishToMavenCentral
+```
+
+== Licenses
+
+Refer to the `LICENSE` file for details.
