@@ -17,9 +17,6 @@ plugins {
     // Apply the groovy plugin to also add support for Groovy (needed for Spock)
     id 'groovy'
 
-    // Apply the application plugin to add support for building a CLI application in Java.
-    id 'application'
-
     // ---------------------------------------------------------------------------
     // PUBLISHING
     // ---------------------------------------------------------------------------
@@ -42,6 +39,12 @@ repositories {
 }
 
 dependencies {
+
+    // Spring Boot BOM governs all Spring artefact versions.
+    implementation platform(libs.spring.boot.bom)
+    annotationProcessor platform(libs.spring.boot.bom)
+    testImplementation platform(libs.spring.boot.bom)
+
     // Use the latest Groovy version for Spock testing
     testImplementation libs.groovy
 
@@ -53,6 +56,26 @@ dependencies {
 
     // This dependency is used by the application.
     implementation libs.guava
+
+    // Core runtime.
+    implementation libs.spring.boot.starter.security
+    implementation libs.spring.boot.starter.oauth2.resource.server
+    implementation libs.spring.boot.autoconfigure
+
+    // Servlet API supplied by the consuming app.
+    compileOnly libs.spring.boot.starter.web
+    testImplementation libs.spring.boot.starter.web
+
+    // Immutables model generation.
+    compileOnly         libs.org.immutables.value.annotations
+    annotationProcessor libs.org.immutables.value
+
+    // Config metadata for IDE completion.
+    annotationProcessor libs.spring.boot.configuration.processor
+
+    // Test support.
+    testImplementation libs.spring.boot.starter.test
+    testImplementation libs.spring.security.test
 }
 
 // -----------------------------------------------------------------------------
