@@ -1,0 +1,50 @@
+
+# We use this TOML file as a version catalog (see
+# https://docs.gradle.org/current/userguide/version_catalogs.html) to
+# consolidate all of our dependency version declarations in one place.
+# ______________________________________________________________________________
+#
+# Created by brightSPARK Labs
+# www.brightsparklabs.com
+
+
+# ------------------------------------------------------------------------------
+# VERSIONS
+# ------------------------------------------------------------------------------
+
+[versions]
+
+# --- Shared / cross-cutting ---------------------------------------------------
+groovy = "4.0.27"
+guava = "33.4.6-jre"
+
+# --- Testing -------------------------------------------------------------------
+junit = "4.13.2"
+spock-core = "2.3-groovy-4.0"
+
+# --- Gradle plugins ------------------------------------------------------------
+
+plugin-bsl-baseline = "7.1.0"
+plugin-jreleaser = "1.26.0"
+
+# ------------------------------------------------------------------------------
+# LIBRARIES
+# ------------------------------------------------------------------------------
+
+[libraries]
+
+# --- Shared / cross-cutting ---------------------------------------------------
+groovy = { module = "org.apache.groovy:groovy", version.ref = "groovy" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+
+# --- Testing -------------------------------------------------------------------
+junit = { module = "junit:junit", version.ref = "junit" }
+spock-core = { module = "org.spockframework:spock-core", version.ref = "spock-core" }
+
+# ------------------------------------------------------------------------------
+# PLUGINS
+# ------------------------------------------------------------------------------
+
+[plugins]
+com-brightsparklabs-gradle-baseline = { id = "com.brightsparklabs.gradle.baseline", version.ref = "plugin-bsl-baseline" }
+org-jreleaser = { id = "org.jreleaser", version.ref = "plugin-jreleaser" }
