@@ -62,6 +62,9 @@ dependencies {
     implementation libs.spring.boot.starter.oauth2.resource.server
     implementation libs.spring.boot.autoconfigure
 
+    // Jakarta Bean Validation for configuration models.
+    implementation libs.spring.boot.starter.validation
+
     // Servlet API supplied by the consuming app.
     compileOnly libs.spring.boot.starter.web
     testImplementation libs.spring.boot.starter.web
