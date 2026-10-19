@@ -7,6 +7,9 @@
 
 package com.brightsparklabs.springboot.starters.auth.external;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
+
 /**
  * Spring Boot auto-configuration for the externally authenticated auth starter.
  *
@@ -35,6 +38,14 @@ public class ExternalAuthAutoConfiguration {
     // -------------------------------------------------------------------------
     // PUBLIC METHODS
     // -------------------------------------------------------------------------
+
+    // Default principle converter, can be overwritten by consumers by providing a @Bean with the
+    // same return type.
+    @Bean
+    @ConditionalOnMissingBean
+    public PrincipalConverter<?> principalConverter() {
+        return new IdentityPrincipalConverter();
+    }
 
     // -------------------------------------------------------------------------
     // PRIVATE METHODS
