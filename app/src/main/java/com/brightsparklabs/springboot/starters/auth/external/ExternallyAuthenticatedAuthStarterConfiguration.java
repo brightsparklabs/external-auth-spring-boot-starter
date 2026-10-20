@@ -23,6 +23,7 @@ import java.lang.annotation.Target;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -34,6 +35,8 @@ import org.springframework.validation.annotation.Validated;
  * @param method The authentication method to use.
  * @param mdcUsernameField Key in the MDC that the authenticated user's username is stored against,
  *     used for access logging. Shared by all methods.
+ * @param principalField The property on the user principal that should act as the user's username.
+ *     If left {@code null} then the {@link MdcPrincipalUsernameField#USERNAME} field is used.
  * @param user The user to use for the {@link AuthMethod#DEV} method. Ignored otherwise.
  * @param headers The header fields to read the user from for the {@link AuthMethod#HTTP_HEADERS}
  *     method. Defaults to {@link HttpHeadersConfiguration#DEFAULT_INSTANCE} when that method is in
@@ -45,7 +48,8 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "brightsparklabs.auth")
 public record ExternallyAuthenticatedAuthStarterConfiguration(
         @NotNull AuthMethod method,
-        @NotBlank String mdcUsernameField,
+        @DefaultValue("req.username") String mdcUsernameField,
+        MdcPrincipalUsernameField principalField,
         Optional<InternalUser> user,
         Optional<HttpHeadersConfiguration> headers) {
 
@@ -62,6 +66,10 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
         // Provide a default header config value if nothing is provided.
         if (method == AuthMethod.HTTP_HEADERS && headers.isEmpty()) {
             headers = Optional.of(HttpHeadersConfiguration.DEFAULT_INSTANCE);
+        }
+
+        if (principalField == null) {
+            principalField = MdcPrincipalUsernameField.USERNAME;
         }
     }
 
@@ -236,5 +244,26 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
          * <p>DO NOT USE THIS IN PRODUCTION.
          */
         DEV,
+    }
+
+    /**
+     * The fields in the {@link InternalUser} that can be inserted into the MDC username request
+     * field.
+     */
+    public enum MdcPrincipalUsernameField {
+        /** Corresponds to {@link InternalUser#username()}. */
+        USERNAME,
+
+        /** Corresponds to {@link InternalUser#firstName()}. */
+        FIRST_NAME,
+
+        /** Corresponds to {@link InternalUser#lastName()}. */
+        LAST_NAME,
+
+        /** Corresponds to {@link InternalUser#name()}. */
+        FULL_NAME,
+
+        /** Corresponds to {@link InternalUser#email()}. */
+        EMAIL
     }
 }
