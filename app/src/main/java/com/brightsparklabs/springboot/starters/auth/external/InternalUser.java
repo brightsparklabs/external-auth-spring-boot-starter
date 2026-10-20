@@ -8,15 +8,19 @@
 package com.brightsparklabs.springboot.starters.auth.external;
 
 import com.brightsparklabs.springboot.starters.auth.external.ExternallyAuthenticatedAuthStarterConfiguration.MdcPrincipalUsernameField;
-import com.google.common.collect.ImmutableSet;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.security.core.AuthenticatedPrincipal;
 import org.springframework.validation.annotation.Validated;
 
 /**
  * Represents an authenticated user within the application.
+ *
+ * <p>Implements {@link AuthenticatedPrincipal} so that {@code Authentication#getName()} resolves to
+ * the user's {@link #username()} when this record is used as a principal.
  *
  * @param username The user's unique username.
  * @param firstName The user's first name.
@@ -34,10 +38,11 @@ public record InternalUser(
         @NotBlank String firstName,
         @NotBlank String lastName,
         @NotBlank String email,
-        @NotNull ImmutableSet<String> groups,
-        @NotNull ImmutableSet<String> roles,
+        @NotNull Set<String> groups,
+        @NotNull Set<String> roles,
         @DefaultValue("") String name,
-        Optional<String> logoutUrl) {
+        Optional<String> logoutUrl)
+        implements AuthenticatedPrincipal {
 
     // -------------------------------------------------------------------------
     // CONSTRUCTION
@@ -46,6 +51,22 @@ public record InternalUser(
     /** Compact constructor used to instantiate the name property. */
     public InternalUser {
         name = firstName + " " + lastName;
+    }
+
+    // -------------------------------------------------------------------------
+    // IMPLEMENTATION: AuthenticatedPrincipal
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the name Spring Security uses to identify this principal.
+     *
+     * <p>This is the user's {@link #username()}, not the full name returned by {@link #name()}.
+     *
+     * @return The user's username.
+     */
+    @Override
+    public String getName() {
+        return username;
     }
 
     // -------------------------------------------------------------------------

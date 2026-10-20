@@ -15,6 +15,11 @@ import java.util.Optional;
  */
 public class IdentityPrincipalConverter implements PrincipalConverter<InternalUser> {
     @Override
+    public Class<InternalUser> principalType() {
+        return InternalUser.class;
+    }
+
+    @Override
     public Optional<InternalUser> convertToInternalUser(final InternalUser principal) {
         return Optional.of(principal);
     }

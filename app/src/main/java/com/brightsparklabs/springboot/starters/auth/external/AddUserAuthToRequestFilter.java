@@ -36,9 +36,6 @@ public class AddUserAuthToRequestFilter<P> extends OncePerRequestFilter {
     // INSTANCE VARIABLES
     // -------------------------------------------------------------------------
 
-    /** Type of principal the converter accepts, used to guard the cast. */
-    private final Class<P> principalType;
-
     /** Converts the system principal to an {@link InternalUser}. */
     private final PrincipalConverter<P> principalConverter;
 
@@ -55,18 +52,15 @@ public class AddUserAuthToRequestFilter<P> extends OncePerRequestFilter {
     /**
      * Creates a new filter.
      *
-     * @param principalType Type of principal the converter accepts.
      * @param principalConverter Converts the system principal to an {@link InternalUser}.
      * @param mdcUsernameField MDC key to store the authenticated user's username against.
      * @param principalUsernameField The field in the {@link InternalUser} to insert into the MDC
      *     request.
      */
     public AddUserAuthToRequestFilter(
-            final Class<P> principalType,
             final PrincipalConverter<P> principalConverter,
             final String mdcUsernameField,
             final MdcPrincipalUsernameField principalUsernameField) {
-        this.principalType = requireNonNull(principalType);
         this.principalConverter = requireNonNull(principalConverter);
         this.mdcUsernameField = requireNonNull(mdcUsernameField);
         this.principalUsernameField = requireNonNull(principalUsernameField);
@@ -111,6 +105,7 @@ public class AddUserAuthToRequestFilter<P> extends OncePerRequestFilter {
 
         // Anonymous requests carry a String principal, so guard the cast.
         final Object principal = authentication.getPrincipal();
+        final Class<P> principalType = principalConverter.principalType();
         if (!principalType.isInstance(principal)) {
             return Optional.empty();
         }
