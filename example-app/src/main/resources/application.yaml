@@ -1,0 +1,18 @@
+# Shared configuration for the example application.
+# Select an authentication setup with a profile: jwt-local or jwt-keycloak.
+
+spring:
+  application:
+    name: external-auth-example-app
+
+brightsparklabs:
+  auth:
+    # MDC key the starter stores the authenticated username against.
+    mdc-username-field: req.username
+
+logging:
+  pattern:
+    # Show the MDC username on every log line so the starter's filter can be checked by hand.
+    level: "%5p [user=%X{req.username:-}]"
+  level:
+    com.brightsparklabs: DEBUG

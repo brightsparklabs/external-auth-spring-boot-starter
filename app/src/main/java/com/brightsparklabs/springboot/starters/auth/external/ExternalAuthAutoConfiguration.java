@@ -15,9 +15,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -37,8 +40,16 @@ import org.springframework.security.web.authentication.preauth.PreAuthenticatedA
  * <p>Wires the beans required to authenticate users whose principal is supplied by an external
  * source, such as OAuth2 headers.
  *
+ * <p>Runs before Spring Boot's own servlet security and OAuth2 resource server auto-configurations
+ * so that the filter chains defined here take precedence over Spring Boot's defaults.
+ *
  * @author brightSPARK Labs
  */
+@AutoConfiguration(
+        before = {
+            ServletWebSecurityAutoConfiguration.class,
+            OAuth2ResourceServerAutoConfiguration.class
+        })
 @EnableConfigurationProperties(ExternallyAuthenticatedAuthStarterConfiguration.class)
 public class ExternalAuthAutoConfiguration {
     // -------------------------------------------------------------------------
@@ -103,7 +114,7 @@ public class ExternalAuthAutoConfiguration {
 
     // Converter used to create the Principal from the JWT claims.
     @Bean
-    @ConditionalOnProperty(name = "spring.security.oauth2.resourceserver.jwt")
+    @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "jwt")
     public Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter(
             final PrincipalConverter<?> principalConverter,
             final List<AuthenticationEventListener> listeners) {
@@ -138,7 +149,7 @@ public class ExternalAuthAutoConfiguration {
     // Using the built in JWT support means it needs a specialised filter chain. We only apply this
     // when using JWT.
     @Bean
-    @ConditionalOnProperty(name = "spring.security.oauth2.resourceserver.jwt")
+    @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "jwt")
     public SecurityFilterChain jwtSecurityFilterChain(
             final HttpSecurity http,
             final JwtDecoder jwtDecoder,
@@ -183,7 +194,8 @@ public class ExternalAuthAutoConfiguration {
     // -------------------------------------------------------------------------
 
     /**
-     * Extracts the roles from an {@link InternalUser} and converts them into a set of {@link GrantedAuthority GrantedAuthorities}.
+     * Extracts the roles from an {@link InternalUser} and converts them into a set of {@link
+     * GrantedAuthority GrantedAuthorities}.
      *
      * @param user The user to extract the roles from.
      * @return The authorities for the user.

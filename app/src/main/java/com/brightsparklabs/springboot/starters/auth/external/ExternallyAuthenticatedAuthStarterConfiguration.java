@@ -235,6 +235,15 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
 
     /** The supported authentication methods. */
     public enum AuthMethod {
+        /**
+         * User principal properties are read from the claims of a JWT bearer token.
+         *
+         * <p>The token is validated by Spring Boot's OAuth2 resource server support, so either
+         * {@code spring.security.oauth2.resourceserver.jwt.issuer-uri} or {@code
+         * spring.security.oauth2.resourceserver.jwt.public-key-location} must also be set.
+         */
+        JWT,
+
         /** User principal properties are provided via OAuth2 headers. */
         HTTP_HEADERS,
 

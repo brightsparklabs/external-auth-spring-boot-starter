@@ -35,6 +35,142 @@ export ORG_GRADLE_PROJECT_mavenCentralPassword=<secrets.MAVEN_CENTRAL_PASSWORD>
 ./gradlew publishToMavenCentral
 ```
 
+=== Example Application
+
+The `example-app` subproject is a small web server which uses the starter.
+It is intended for testing the starter by hand and is not published.
+
+It currently exercises the JWT method only, via one of two Spring profiles:
+
+[horizontal]
+`jwt-local`:: Validates tokens against a committed, test-only RSA public key.
+`jwt-keycloak`:: Validates tokens issued by a local Keycloak instance running in Docker.
+
+The application exposes the following endpoints:
+
+[cols="3,6,3"]
+|===
+| Endpoint | Behaviour | Required authority
+
+| `GET /api/me`
+| Returns the authenticated user, as resolved by the starter.
+| None.
+
+| `GET /api/admin`
+| Returns a confirmation message.
+| `admin`.
+|===
+
+Each log line includes the MDC username (for example `[user=alice]`), so the starter's MDC population can be checked in the output.
+
+==== Using the `jwt-local` Profile
+
+Start the application:
+
+[source,bash]
+----
+./gradlew :example-app:bootRun --args='--spring.profiles.active=jwt-local'
+----
+
+Mint a token in a second terminal, then call the application:
+
+[source,bash]
+----
+# Mint a token for a user with the admin role.
+TOKEN=$(./gradlew -q :example-app:mintJwt --args='--username=alice --roles=admin --groups=engineering')
+
+curl -H "Authorization: Bearer ${TOKEN}" localhost:8080/api/me
+curl -H "Authorization: Bearer ${TOKEN}" localhost:8080/api/admin
+----
+
+The `mintJwt` task accepts the following arguments, all optional and in `--name=value` form:
+
+[horizontal]
+`--username`:: The `preferred_username` claim (default `alice`).
+`--first-name`:: The `given_name` claim (default is the capitalised username).
+`--last-name`:: The `family_name` claim (default `Example`).
+`--email`:: The `email` claim (default `<username>@example.com`).
+`--roles`:: Comma-separated `roles` claim (default none).
+`--groups`:: Comma-separated `groups` claim (default none).
+`--expires-in-seconds`:: Token lifetime, where a negative value mints an expired token (default `3600`).
+
+WARNING: The private key in `example-app/keys/` is deliberately committed for local testing.
+It is not a secret and must never be used for anything else.
+
+==== Using the `jwt-keycloak` Profile
+
+Start Keycloak, which imports the `example` realm from `example-app/docker/keycloak/` on first start:
+
+[source,bash]
+----
+docker compose -f example-app/docker/compose.yaml up -d
+----
+
+The Keycloak admin console is available at http://localhost:8180 (`admin` / `admin`).
+The realm contains the following test users:
+
+[cols="3,3,6"]
+|===
+| Username / Password | Groups | Realm roles
+
+| `alice` / `alice`
+| `engineering`
+| `admin`, plus the Keycloak defaults.
+
+| `bob` / `bob`
+| None.
+| The Keycloak defaults only.
+|===
+
+Start the application:
+
+[source,bash]
+----
+./gradlew :example-app:bootRun --args='--spring.profiles.active=jwt-keycloak'
+----
+
+Fetch a token from Keycloak in a second terminal, then call the application:
+
+[source,bash]
+----
+TOKEN=$(curl -s \
+    -d client_id=example-app \
+    -d grant_type=password \
+    -d username=alice \
+    -d password=alice \
+    localhost:8180/realms/example/protocol/openid-connect/token \
+    | jq -r .access_token)
+
+curl -H "Authorization: Bearer ${TOKEN}" localhost:8080/api/me
+curl -H "Authorization: Bearer ${TOKEN}" localhost:8080/api/admin
+----
+
+Stop Keycloak once finished:
+
+[source,bash]
+----
+docker compose -f example-app/docker/compose.yaml down
+----
+
+==== Expected Responses
+
+[cols="6,3,3"]
+|===
+| Request | `/api/me` | `/api/admin`
+
+| Valid token with the `admin` role.
+| `200`
+| `200`
+
+| Valid token without the `admin` role.
+| `200`
+| `403`
+
+| No token, or an expired, forged or malformed token.
+| `401`
+| `401`
+|===
+
 == Licenses
 
 Refer to the `LICENSE` file for details.

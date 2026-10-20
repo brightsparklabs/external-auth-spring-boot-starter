@@ -22,8 +22,7 @@ public interface PrincipalConverter<P extends AuthenticatedPrincipal> {
     /**
      * Returns the type of principal this converter produces and accepts.
      *
-     * <p>Used to check a principal's type before it is passed to {@link
-     * #convertToInternalUser(Object)}.
+     * <p>Used to check a principal's type before it is passed to {@link #convertToInternalUser}.
      *
      * @return The principal type.
      */

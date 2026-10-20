@@ -7,3 +7,6 @@
 
 rootProject.name = 'external-auth-spring-boot-starter'
 include('app')
+
+// Example application used to test the starter by hand. Not published.
+include('example-app')
