@@ -28,7 +28,7 @@ import org.springframework.validation.annotation.Validated;
  * @param email The user's email address.
  * @param groups The groups the user is a member of.
  * @param roles The roles granted to the user.
- * @param name The user's full name, derived from the firstname and lastname.
+ * @param fullName The user's full name, derived from the first name and last name.
  * @param logoutUrl The URL to redirect the user to on logout, if any.
  * @author brightSPARK Labs
  */
@@ -40,7 +40,7 @@ public record InternalUser(
         @NotBlank String email,
         @NotNull Set<String> groups,
         @NotNull Set<String> roles,
-        @DefaultValue("") String name,
+        @DefaultValue("") String fullName,
         Optional<String> logoutUrl)
         implements AuthenticatedPrincipal {
 
@@ -48,9 +48,9 @@ public record InternalUser(
     // CONSTRUCTION
     // -------------------------------------------------------------------------
 
-    /** Compact constructor used to instantiate the name property. */
+    /** Compact constructor used to instantiate the fullName property. */
     public InternalUser {
-        name = firstName + " " + lastName;
+        fullName = firstName + " " + lastName;
     }
 
     // -------------------------------------------------------------------------
@@ -59,8 +59,6 @@ public record InternalUser(
 
     /**
      * Returns the name Spring Security uses to identify this principal.
-     *
-     * <p>This is the user's {@link #username()}, not the full name returned by {@link #name()}.
      *
      * @return The user's username.
      */
@@ -86,7 +84,7 @@ public record InternalUser(
             case USERNAME -> this.username;
             case FIRST_NAME -> this.firstName;
             case LAST_NAME -> this.lastName;
-            case FULL_NAME -> this.name;
+            case FULL_NAME -> this.fullName;
         };
     }
 }

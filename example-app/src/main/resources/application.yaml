@@ -9,6 +9,7 @@ brightsparklabs:
   auth:
     # MDC key the starter stores the authenticated username against.
     mdc-username-field: req.username
+    principal-field: email
 
 logging:
   pattern:

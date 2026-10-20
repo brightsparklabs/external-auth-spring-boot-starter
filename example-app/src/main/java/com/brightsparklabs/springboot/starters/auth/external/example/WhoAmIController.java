@@ -55,10 +55,10 @@ public class WhoAmIController {
      * @return The authenticated user.
      */
     @GetMapping("/me")
-    public WhoAmIResponse me(
+    public Object me(
             @AuthenticationPrincipal final MyUser user, final Authentication authentication) {
         logger.info("Returning details for the authenticated user.");
-        return WhoAmIResponse.of(user, authentication);
+        return user;
     }
 
     /**

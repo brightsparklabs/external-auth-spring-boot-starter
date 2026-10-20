@@ -136,11 +136,8 @@ public class ExternalAuthAutoConfiguration {
 
             listeners.forEach(listener -> listener.onAuthenticationSuccess(user));
 
-            /* Expose the converted principal (not the raw JWT) so downstream code, including
-             * AddUserAuthToRequestFilter, sees the application's principal type. The token's name
-             * comes from the principal, so principal types should implement
-             * AuthenticatedPrincipal (as InternalUser does) to avoid falling back to toString().
-             */
+            // Return the principal defined by the consumer and make it available to downstream
+            // endpoints.
             return new PreAuthenticatedAuthenticationToken(
                     principalConverter.convertToPrincipal(user), jwt, toAuthorities(user));
         };

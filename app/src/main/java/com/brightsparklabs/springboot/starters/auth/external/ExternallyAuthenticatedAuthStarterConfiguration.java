@@ -269,7 +269,7 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
         /** Corresponds to {@link InternalUser#lastName()}. */
         LAST_NAME,
 
-        /** Corresponds to {@link InternalUser#name()}. */
+        /** Corresponds to {@link InternalUser#fullName()}. */
         FULL_NAME,
 
         /** Corresponds to {@link InternalUser#email()}. */
