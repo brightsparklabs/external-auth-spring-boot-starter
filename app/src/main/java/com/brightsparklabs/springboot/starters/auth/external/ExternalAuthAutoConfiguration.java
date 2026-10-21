@@ -28,7 +28,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.event.AuthenticationFailureBadCredentialsEvent;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -38,6 +40,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationConverter;
+import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
+import org.springframework.security.web.authentication.AuthenticationFilter;
 import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 
 /**
@@ -95,7 +100,6 @@ public class ExternalAuthAutoConfiguration {
     /** Name of the claim containing the client roles of the user. */
     public static final String CLAIM_FIELD_RESOURCE_ACCESS = "resource_access";
 
-
     // -------------------------------------------------------------------------
     // PRINCIPAL CONVERTER
     // -------------------------------------------------------------------------
@@ -143,6 +147,24 @@ public class ExternalAuthAutoConfiguration {
     // DEV
     // -------------------------------------------------------------------------
 
+    @Bean
+    @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "dev")
+    public AuthenticationProvider devAuthenticationProvider(
+            final PrincipalConverter<?> principalConverter,
+            final ExternallyAuthenticatedAuthStarterConfiguration configuration) {
+        final InternalUser user = configuration.user();
+        return new DevAuthenticationProvider(principalConverter, user);
+    }
+
+    /* Supplies a placeholder authentication request for every request. AuthenticationFilter skips
+     * authentication entirely when its converter returns null, so without this the dev provider
+     * would never be invoked. The dev provider ignores the credentials.
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "dev")
+    public AuthenticationConverter devAuthenticationConverter() {
+        return request -> new PreAuthenticatedAuthenticationToken("dev", "dev");
+    }
 
     // -------------------------------------------------------------------------
     // JWT
@@ -219,6 +241,70 @@ public class ExternalAuthAutoConfiguration {
                                                         .jwtAuthenticationConverter(
                                                                 jwtAuthenticationConverter)));
 
+        return http.build();
+    }
+
+    // -------------------------------------------------------------------------
+    // SECURITY FILTER CHAIN
+    // -------------------------------------------------------------------------
+
+    /**
+     * Builds the generic filter chain for the {@code http-headers} and {@code dev} methods from
+     * whichever converter and provider were activated above. The {@code jwt} method supplies its
+     * own resource-server chain and does not use this bean.
+     */
+    @Bean
+    @ConditionalOnMissingBean(SecurityFilterChain.class)
+    public SecurityFilterChain securityFilterChain(
+            final HttpSecurity http,
+            final AuthenticationConverter converter,
+            final AuthenticationProvider provider,
+            final AuthenticationEventPublisher eventPublisher,
+            final PrincipalConverter<?> principalConverter,
+            final ExternallyAuthenticatedAuthStarterConfiguration configuration)
+            throws Exception {
+
+        /* Deliberately not a @Bean: Spring Boot registers every Filter bean with the servlet
+         * container, which would run this filter a second time outside the security chain.
+         */
+        final AddUserAuthToRequestFilter<?> addUserAuthToRequestFilter =
+                new AddUserAuthToRequestFilter<>(
+                        principalConverter,
+                        configuration.mdcUsernameField(),
+                        configuration.principalField());
+
+        // Publish authentication events so the AuthenticationEventListenerDispatcher sees them.
+        final ProviderManager authenticationManager = new ProviderManager(provider);
+        authenticationManager.setAuthenticationEventPublisher(eventPublisher);
+
+        final AuthenticationFilter authenticationFilter =
+                new AuthenticationFilter(authenticationManager, converter);
+        /* The default success handler redirects to the saved request (or "/"). Authentication
+         * occurs on every request here, so simply continue down the filter chain instead.
+         */
+        authenticationFilter.setSuccessHandler((request, response, authentication) -> {});
+        authenticationFilter.setFailureHandler(
+                new AuthenticationEntryPointFailureHandler(new Unauthorized401EntryPoint()));
+
+        http.securityContext(context -> context.requireExplicitSave(false))
+                // Don't attempt to store the user context in a session. The reverse proxy should
+                // always send across the authenticated user data.
+                .sessionManagement(
+                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                /* Create the principal BEFORE adding it to MDC. Register at AuthenticationFilter's
+                 * standard position so the MDC filter below (registered relative to the same
+                 * position) is guaranteed to run after it.
+                 */
+                .addFilterAt(authenticationFilter, AuthenticationFilter.class)
+                // Add the user's auth to the MDC request.
+                .addFilterAfter(addUserAuthToRequestFilter, AuthenticationFilter.class)
+                /* Map authentication failures to a 401 response. Authorisation failures fall
+                 * through to Spring's default access denied handler (403). Listeners are notified
+                 * of authentication outcomes via the AuthenticationEventListenerDispatcher.
+                 */
+                .exceptionHandling(e -> e.authenticationEntryPoint(new Unauthorized401EntryPoint()))
+                // Apply to all endpoints.
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated());
         return http.build();
     }
 

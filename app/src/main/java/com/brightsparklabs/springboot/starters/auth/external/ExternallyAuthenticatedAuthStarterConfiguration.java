@@ -9,10 +9,12 @@ package com.brightsparklabs.springboot.starters.auth.external;
 
 import com.brightsparklabs.springboot.starters.auth.external.ExternallyAuthenticatedAuthStarterConfiguration.ValidExternalAuthDevConfiguration;
 import com.google.common.collect.ImmutableSet;
+import jakarta.annotation.Nullable;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import jakarta.validation.Payload;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.lang.annotation.Documented;
@@ -20,7 +22,6 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.Optional;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -50,8 +51,10 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
         @NotNull AuthMethod method,
         @DefaultValue("req.username") String mdcUsernameField,
         MdcPrincipalUsernameField principalField,
-        Optional<InternalUser> user,
-        Optional<HttpHeadersConfiguration> headers) {
+        // NOTE: Cannot use Optional here as Spring Boot doesn't populate them correctly when they
+        // are not supplied in config.
+        @Valid @Nullable InternalUser user,
+        @Nullable HttpHeadersConfiguration headers) {
 
     // -------------------------------------------------------------------------
     // CONSTRUCTION
@@ -64,8 +67,8 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
     public ExternallyAuthenticatedAuthStarterConfiguration {
 
         // Provide a default header config value if nothing is provided.
-        if (method == AuthMethod.HTTP_HEADERS && headers.isEmpty()) {
-            headers = Optional.of(HttpHeadersConfiguration.DEFAULT_INSTANCE);
+        if (method == AuthMethod.HTTP_HEADERS && headers == null) {
+            headers = HttpHeadersConfiguration.DEFAULT_INSTANCE;
         }
 
         if (principalField == null) {
@@ -185,7 +188,8 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
          *
          * @return The validation failure message.
          */
-        String message() default "A dummy user must be defined when using the developer method.";
+        String message() default
+                "A dummy user must be defined when using the dev authentication method.";
 
         /**
          * Returns the validation groups this constraint belongs to.
@@ -229,7 +233,7 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
             }
 
             // If the method is DEV then a user must be provided.
-            return value.method() != AuthMethod.DEV || value.user().isPresent();
+            return value.method() != AuthMethod.DEV || value.user() != null;
         }
     }
 
