@@ -105,15 +105,9 @@ public class AddUserAuthToRequestFilter<P extends AuthenticatedPrincipal>
             return Optional.empty();
         }
 
-        // Anonymous requests carry a String principal, so guard the cast.
-        final Object principal = authentication.getPrincipal();
-        final Class<P> principalType = principalConverter.principalType();
-        if (!principalType.isInstance(principal)) {
-            return Optional.empty();
-        }
-
+        // Anonymous requests carry a String principal, which the converter guards against.
         return principalConverter
-                .convertToInternalUser(principalType.cast(principal))
+                .toInternalUser(authentication.getPrincipal())
                 .map(user -> user.getPrincipalUsername(principalUsernameField));
     }
 }

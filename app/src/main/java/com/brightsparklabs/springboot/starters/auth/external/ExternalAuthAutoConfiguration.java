@@ -15,15 +15,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authentication.AuthenticationEventPublisher;
+import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
+import org.springframework.security.authentication.event.AuthenticationFailureBadCredentialsEvent;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
@@ -47,6 +53,7 @@ import org.springframework.security.web.authentication.preauth.PreAuthenticatedA
  */
 @AutoConfiguration(
         before = {
+            SecurityAutoConfiguration.class,
             ServletWebSecurityAutoConfiguration.class,
             OAuth2ResourceServerAutoConfiguration.class
         })
@@ -88,20 +95,9 @@ public class ExternalAuthAutoConfiguration {
     /** Name of the claim containing the client roles of the user. */
     public static final String CLAIM_FIELD_RESOURCE_ACCESS = "resource_access";
 
-    // -------------------------------------------------------------------------
-    // CLASS VARIABLES
-    // -------------------------------------------------------------------------
 
     // -------------------------------------------------------------------------
-    // INSTANCE VARIABLES
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // CONSTRUCTION
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // PUBLIC METHODS
+    // PRINCIPAL CONVERTER
     // -------------------------------------------------------------------------
 
     // Default principle converter, can be overwritten by consumers by providing a @Bean with the
@@ -112,12 +108,51 @@ public class ExternalAuthAutoConfiguration {
         return new IdentityPrincipalConverter();
     }
 
+    // -------------------------------------------------------------------------
+    // EVENT HANDLING
+    // -------------------------------------------------------------------------
+
+    /* Publishes Spring Security's authentication success and failure events, which are dispatched to
+     * listeners by the AuthenticationEventListenerDispatcher. Failures of a type not explicitly
+     * mapped by Spring Security are published as bad credentials so no failure goes unreported.
+     */
+    @Bean
+    @ConditionalOnMissingBean(AuthenticationEventPublisher.class)
+    public AuthenticationEventPublisher authenticationEventPublisher(
+            final ApplicationEventPublisher publisher) {
+        final DefaultAuthenticationEventPublisher eventPublisher =
+                new DefaultAuthenticationEventPublisher(publisher);
+        eventPublisher.setDefaultAuthenticationFailureEvent(
+                AuthenticationFailureBadCredentialsEvent.class);
+        return eventPublisher;
+    }
+
+    // Dispatches authentication events to any AuthenticationEventListener beans.
+    @Bean
+    public AuthenticationEventListenerDispatcher authenticationEventListenerDispatcher(
+            final ObjectProvider<AuthenticationEventListener> listeners,
+            final PrincipalConverter<?> principalConverter) {
+        return new AuthenticationEventListenerDispatcher(listeners, principalConverter);
+    }
+
+    // -------------------------------------------------------------------------
+    // HEADERS
+    // -------------------------------------------------------------------------
+
+    // -------------------------------------------------------------------------
+    // DEV
+    // -------------------------------------------------------------------------
+
+
+    // -------------------------------------------------------------------------
+    // JWT
+    // -------------------------------------------------------------------------
+
     // Converter used to create the Principal from the JWT claims.
     @Bean
     @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "jwt")
     public Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter(
-            final PrincipalConverter<?> principalConverter,
-            final List<AuthenticationEventListener> listeners) {
+            final PrincipalConverter<?> principalConverter) {
         return jwt -> {
             final InternalUser user =
                     new InternalUser(
@@ -133,8 +168,6 @@ public class ExternalAuthAutoConfiguration {
                             // Full name will be derived during construction.
                             "",
                             Optional.of(jwt.getIssuer() + "/protocol/openid-connect/logout"));
-
-            listeners.forEach(listener -> listener.onAuthenticationSuccess(user));
 
             // Return the principal defined by the consumer and make it available to downstream
             // endpoints.
@@ -168,7 +201,10 @@ public class ExternalAuthAutoConfiguration {
                 // always send across the authenticated user data.
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Map all exceptions to a 401 response.
+                /* Map authentication failures to a 401 response. Authorisation failures fall
+                 * through to Spring's default access denied handler (403). Listeners are notified
+                 * of authentication outcomes via the AuthenticationEventListenerDispatcher.
+                 */
                 .exceptionHandling(e -> e.authenticationEntryPoint(new Unauthorized401EntryPoint()))
                 // Apply to all endpoints.
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
