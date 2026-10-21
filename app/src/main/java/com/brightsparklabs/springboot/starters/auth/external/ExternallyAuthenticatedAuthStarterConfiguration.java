@@ -8,7 +8,7 @@
 package com.brightsparklabs.springboot.starters.auth.external;
 
 import com.brightsparklabs.springboot.starters.auth.external.ExternallyAuthenticatedAuthStarterConfiguration.ValidExternalAuthDevConfiguration;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableList;
 import jakarta.annotation.Nullable;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
@@ -22,7 +22,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.Set;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
@@ -95,43 +95,43 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
      * @param rolesHeaderFields The headers to read the user's roles from.
      */
     public record HttpHeadersConfiguration(
-            Set<String> usernameHeaderFields,
-            Set<String> firstNameHeaderFields,
-            Set<String> lastNameHeaderFields,
-            Set<String> emailHeaderFields,
-            Set<String> groupsHeaderFields,
-            Set<String> rolesHeaderFields) {
+            List<String> usernameHeaderFields,
+            List<String> firstNameHeaderFields,
+            List<String> lastNameHeaderFields,
+            List<String> emailHeaderFields,
+            List<String> groupsHeaderFields,
+            List<String> rolesHeaderFields) {
 
         /** The default header fields to attempt to retrieve the username from in order. */
-        private static final Set<String> DEFAULT_USERNAME_HEADER_FIELDS =
-                ImmutableSet.of(
+        private static final List<String> DEFAULT_USERNAME_HEADER_FIELDS =
+                ImmutableList.of(
                         "X-Auth-Request-Preferred-Username",
                         "X-Forwarded-Preferred-Username",
                         "X-Auth-Username");
 
         /** The default header fields to attempt to retrieve the first name from in order. */
-        private static final Set<String> DEFAULT_FIRST_NAME_HEADER_FIELDS =
-                ImmutableSet.of(
+        private static final List<String> DEFAULT_FIRST_NAME_HEADER_FIELDS =
+                ImmutableList.of(
                         "X-Auth-Request-Given-Name", "X-Forwarded-Given-Name", "X-Auth-Given-Name");
 
         /** The default header fields to attempt to retrieve the last name from in order. */
-        private static final Set<String> DEFAULT_LAST_NAME_HEADER_FIELDS =
-                ImmutableSet.of(
+        private static final List<String> DEFAULT_LAST_NAME_HEADER_FIELDS =
+                ImmutableList.of(
                         "X-Auth-Request-Family-Name",
                         "X-Forwarded-Family-Name",
                         "X-Auth-Family-Name");
 
         /** The default header fields to attempt to retrieve the email from in order. */
-        private static final Set<String> DEFAULT_EMAIL_HEADER_FIELDS =
-                ImmutableSet.of("X-Auth-Request-Email", "X-Forwarded-Email", "X-Auth-Email");
+        private static final List<String> DEFAULT_EMAIL_HEADER_FIELDS =
+                ImmutableList.of("X-Auth-Request-Email", "X-Forwarded-Email", "X-Auth-Email");
 
         /** The default header fields to attempt to retrieve the groups from in order. */
-        private static final Set<String> DEFAULT_GROUPS_HEADER_FIELDS =
-                ImmutableSet.of("X-Auth-Request-Groups", "X-Forwarded-Groups", "X-Auth-Groups");
+        private static final List<String> DEFAULT_GROUPS_HEADER_FIELDS =
+                ImmutableList.of("X-Auth-Request-Groups", "X-Forwarded-Groups", "X-Auth-Groups");
 
         /** The default header fields to attempt to retrieve the roles from in order. */
-        private static final Set<String> DEFAULT_ROLES_HEADER_FIELDS =
-                ImmutableSet.of("X-Auth-Request-Roles", "X-Forwarded-Roles", "X-Auth-Roles");
+        private static final List<String> DEFAULT_ROLES_HEADER_FIELDS =
+                ImmutableList.of("X-Auth-Request-Roles", "X-Forwarded-Roles", "X-Auth-Roles");
 
         /** Default instance of this record. */
         public static HttpHeadersConfiguration DEFAULT_INSTANCE =
@@ -273,7 +273,7 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
         /** Corresponds to {@link InternalUser#lastName()}. */
         LAST_NAME,
 
-        /** Corresponds to {@link InternalUser#fullName()}. */
+        /** Corresponds to {@link InternalUser#getFullName()}. */
         FULL_NAME,
 
         /** Corresponds to {@link InternalUser#email()}. */

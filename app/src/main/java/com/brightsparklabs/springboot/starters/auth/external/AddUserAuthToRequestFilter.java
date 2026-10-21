@@ -108,6 +108,6 @@ public class AddUserAuthToRequestFilter<P extends AuthenticatedPrincipal>
         // Anonymous requests carry a String principal, which the converter guards against.
         return principalConverter
                 .toInternalUser(authentication.getPrincipal())
-                .map(user -> user.getPrincipalUsername(principalUsernameField));
+                .flatMap(user -> user.getPrincipalUsername(principalUsernameField));
     }
 }

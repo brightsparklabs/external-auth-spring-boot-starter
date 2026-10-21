@@ -101,11 +101,26 @@ public class ExternalAuthAutoConfiguration {
     public static final String CLAIM_FIELD_RESOURCE_ACCESS = "resource_access";
 
     // -------------------------------------------------------------------------
+    // CONSTRUCTION
+    // -------------------------------------------------------------------------
+
+    /** Creates the auto-configuration. Instantiated by Spring Boot, not by consumers. */
+    public ExternalAuthAutoConfiguration() {
+        // Nothing to initialise.
+    }
+
+    // -------------------------------------------------------------------------
     // PRINCIPAL CONVERTER
     // -------------------------------------------------------------------------
 
-    // Default principle converter, can be overwritten by consumers by providing a @Bean with the
-    // same return type.
+    /**
+     * Supplies the default principal converter, which uses {@link InternalUser} itself as the
+     * system principal.
+     *
+     * <p>Consumers can replace it by declaring their own {@link PrincipalConverter} bean.
+     *
+     * @return The identity principal converter.
+     */
     @Bean
     @ConditionalOnMissingBean
     public PrincipalConverter<?> principalConverter() {
@@ -116,9 +131,16 @@ public class ExternalAuthAutoConfiguration {
     // EVENT HANDLING
     // -------------------------------------------------------------------------
 
-    /* Publishes Spring Security's authentication success and failure events, which are dispatched to
-     * listeners by the AuthenticationEventListenerDispatcher. Failures of a type not explicitly
-     * mapped by Spring Security are published as bad credentials so no failure goes unreported.
+    /**
+     * Publishes Spring Security's authentication success and failure events, which the {@link
+     * AuthenticationEventListenerDispatcher} forwards to listeners.
+     *
+     * <p>Failures of a type not explicitly mapped by Spring Security are published as {@link
+     * AuthenticationFailureBadCredentialsEvent}s so that no failure goes unreported. Consumers can
+     * replace it by declaring their own {@link AuthenticationEventPublisher} bean.
+     *
+     * @param publisher The application event publisher to publish the events through.
+     * @return The authentication event publisher.
      */
     @Bean
     @ConditionalOnMissingBean(AuthenticationEventPublisher.class)
@@ -131,7 +153,14 @@ public class ExternalAuthAutoConfiguration {
         return eventPublisher;
     }
 
-    // Dispatches authentication events to any AuthenticationEventListener beans.
+    /**
+     * Forwards authentication events to every {@link AuthenticationEventListener} bean.
+     *
+     * @param listeners Supplies the registered listeners. May supply none.
+     * @param principalConverter Converts the authenticated principal back to an {@link
+     *     InternalUser} for success notifications.
+     * @return The dispatcher.
+     */
     @Bean
     public AuthenticationEventListenerDispatcher authenticationEventListenerDispatcher(
             final ObjectProvider<AuthenticationEventListener> listeners,
@@ -143,10 +172,51 @@ public class ExternalAuthAutoConfiguration {
     // HEADERS
     // -------------------------------------------------------------------------
 
+    /**
+     * Collects the request headers for the {@code http-headers} method.
+     *
+     * @return The converter which collects the request headers.
+     */
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "brightsparklabs.auth",
+            name = "method",
+            havingValue = "http-headers")
+    public AuthenticationConverter headerFieldsAuthenticationConverter() {
+        return new HeaderFieldsAuthenticationConverter();
+    }
+
+    /**
+     * Authenticates the user from the collected request headers for the {@code http-headers}
+     * method.
+     *
+     * @param principalConverter Converter between {@link InternalUser} and the system principal.
+     * @param configuration The starter configuration, supplying the header names to read.
+     * @return The provider which builds the user from the request headers.
+     */
+    @Bean
+    @ConditionalOnProperty(
+            prefix = "brightsparklabs.auth",
+            name = "method",
+            havingValue = "http-headers")
+    public AuthenticationProvider headerFieldsAuthenticationProvider(
+            final PrincipalConverter<?> principalConverter,
+            final ExternallyAuthenticatedAuthStarterConfiguration configuration) {
+        return new HeaderFieldsAuthenticationProvider(principalConverter, configuration.headers());
+    }
+
     // -------------------------------------------------------------------------
     // DEV
     // -------------------------------------------------------------------------
 
+    /**
+     * Authenticates every request as the fixed user configured under {@code
+     * brightsparklabs.auth.user}, for the {@code dev} method.
+     *
+     * @param principalConverter Converter between {@link InternalUser} and the system principal.
+     * @param configuration The starter configuration, supplying the fixed user.
+     * @return The provider which authenticates every request as the fixed user.
+     */
     @Bean
     @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "dev")
     public AuthenticationProvider devAuthenticationProvider(
@@ -156,9 +226,14 @@ public class ExternalAuthAutoConfiguration {
         return new DevAuthenticationProvider(principalConverter, user);
     }
 
-    /* Supplies a placeholder authentication request for every request. AuthenticationFilter skips
-     * authentication entirely when its converter returns null, so without this the dev provider
-     * would never be invoked. The dev provider ignores the credentials.
+    /**
+     * Supplies a placeholder authentication request for every request, for the {@code dev} method.
+     *
+     * <p>{@code AuthenticationFilter} skips authentication entirely when its converter returns
+     * {@code null}, so without this the dev provider would never be invoked. The dev provider
+     * ignores the placeholder's credentials.
+     *
+     * @return The converter which supplies the placeholder request.
      */
     @Bean
     @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "dev")
@@ -170,7 +245,16 @@ public class ExternalAuthAutoConfiguration {
     // JWT
     // -------------------------------------------------------------------------
 
-    // Converter used to create the Principal from the JWT claims.
+    /**
+     * Builds the authenticated token from a validated JWT's claims, for the {@code jwt} method.
+     *
+     * <p>Claims are read using the Keycloak-style {@code CLAIM_FIELD_*} names defined on this
+     * class. Roles are gathered from the top-level, realm, and resource-access claims, and the
+     * logout URL is derived from the issuer.
+     *
+     * @param principalConverter Converter between {@link InternalUser} and the system principal.
+     * @return The converter from JWT to authenticated token.
+     */
     @Bean
     @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "jwt")
     public Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter(
@@ -181,14 +265,12 @@ public class ExternalAuthAutoConfiguration {
                             jwt.getClaimAsString(CLAIM_FIELD_USERNAME),
                             jwt.getClaimAsString(CLAIM_FIELD_FIRSTNAME),
                             jwt.getClaimAsString(CLAIM_FIELD_LASTNAME),
-                            jwt.getClaimAsString(CLAIM_FIELD_EMAIL),
+                            Optional.ofNullable(jwt.getClaimAsString(CLAIM_FIELD_EMAIL)),
                             ImmutableSet.copyOf(
                                     Optional.ofNullable(
                                                     jwt.getClaimAsStringList(CLAIM_FIELD_GROUPS))
                                             .orElse(ImmutableList.of())),
                             getRoles(jwt),
-                            // Full name will be derived during construction.
-                            "",
                             Optional.of(jwt.getIssuer() + "/protocol/openid-connect/logout"));
 
             // Return the principal defined by the consumer and make it available to downstream
@@ -198,8 +280,22 @@ public class ExternalAuthAutoConfiguration {
         };
     }
 
-    // Using the built in JWT support means it needs a specialised filter chain. We only apply this
-    // when using JWT.
+    /**
+     * Builds the filter chain for the {@code jwt} method, using Spring Security's OAuth2 resource
+     * server support.
+     *
+     * <p>The built-in JWT support needs its own specialised chain rather than the generic {@link
+     * #securityFilterChain}. The chain is stateless, requires authentication for every request, and
+     * adds the authenticated user to the MDC.
+     *
+     * @param http The builder used to create the chain.
+     * @param jwtDecoder Decodes and validates the bearer token.
+     * @param jwtAuthenticationConverter Builds the authenticated token from the JWT's claims.
+     * @param principalConverter Converter between {@link InternalUser} and the system principal.
+     * @param configuration The starter configuration, supplying the MDC settings.
+     * @return The JWT filter chain.
+     * @throws Exception If the chain cannot be built.
+     */
     @Bean
     @ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "jwt")
     public SecurityFilterChain jwtSecurityFilterChain(
@@ -252,6 +348,16 @@ public class ExternalAuthAutoConfiguration {
      * Builds the generic filter chain for the {@code http-headers} and {@code dev} methods from
      * whichever converter and provider were activated above. The {@code jwt} method supplies its
      * own resource-server chain and does not use this bean.
+     *
+     * @param http The builder used to create the chain.
+     * @param converter Extracts the authentication request from each HTTP request.
+     * @param provider Authenticates the extracted request.
+     * @param eventPublisher Publishes authentication events for the {@link
+     *     AuthenticationEventListenerDispatcher}.
+     * @param principalConverter Converter between {@link InternalUser} and the system principal.
+     * @param configuration The starter configuration, supplying the MDC settings.
+     * @return The generic filter chain.
+     * @throws Exception If the chain cannot be built.
      */
     @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)

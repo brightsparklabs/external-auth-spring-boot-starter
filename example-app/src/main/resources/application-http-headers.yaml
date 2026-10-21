@@ -1,0 +1,4 @@
+
+brightsparklabs:
+  auth:
+    method: http-headers

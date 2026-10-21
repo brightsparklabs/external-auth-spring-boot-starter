@@ -12,7 +12,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Optional;
 import java.util.Set;
-import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.security.core.AuthenticatedPrincipal;
 import org.springframework.validation.annotation.Validated;
 
@@ -28,7 +27,6 @@ import org.springframework.validation.annotation.Validated;
  * @param email The user's email address.
  * @param groups The groups the user is a member of.
  * @param roles The roles granted to the user.
- * @param fullName The user's full name, derived from the first name and last name.
  * @param logoutUrl The URL to redirect the user to on logout, if any.
  * @author brightSPARK Labs
  */
@@ -37,10 +35,9 @@ public record InternalUser(
         @NotBlank String username,
         @NotBlank String firstName,
         @NotBlank String lastName,
-        @NotBlank String email,
+        Optional<String> email,
         @NotNull Set<String> groups,
         @NotNull Set<String> roles,
-        @DefaultValue("") String fullName,
         Optional<String> logoutUrl)
         implements AuthenticatedPrincipal {
 
@@ -48,20 +45,24 @@ public record InternalUser(
     // CONSTRUCTION
     // -------------------------------------------------------------------------
 
-    /** Compact constructor used to instantiate the fullName property. */
+    /** Compact constructor used to ensure null values are properly instantiated as optionals. */
     public InternalUser {
-        fullName = firstName + " " + lastName;
+
+        // Do some null checking as Spring Boot doesn't automatically convert missing values to
+        // Optionals.
+        if (email == null) {
+            email = Optional.empty();
+        }
+
+        if (logoutUrl == null) {
+            logoutUrl = Optional.empty();
+        }
     }
 
     // -------------------------------------------------------------------------
     // IMPLEMENTATION: AuthenticatedPrincipal
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns the name Spring Security uses to identify this principal.
-     *
-     * @return The user's username.
-     */
     @Override
     public String getName() {
         return username;
@@ -71,6 +72,11 @@ public record InternalUser(
     // PUBLIC METHODS
     // -------------------------------------------------------------------------
 
+    /** {@return the user's full name, derived from the first name and last name} */
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
+
     /**
      * Extracts the relevant value to use as the user's username from the supplied {@link
      * MdcPrincipalUsernameField}.
@@ -78,13 +84,13 @@ public record InternalUser(
      * @param usernameField The field to extract the value from.
      * @return The value of the requested field.
      */
-    public String getPrincipalUsername(final MdcPrincipalUsernameField usernameField) {
+    public Optional<String> getPrincipalUsername(final MdcPrincipalUsernameField usernameField) {
         return switch (usernameField) {
             case EMAIL -> this.email;
-            case USERNAME -> this.username;
-            case FIRST_NAME -> this.firstName;
-            case LAST_NAME -> this.lastName;
-            case FULL_NAME -> this.fullName;
+            case USERNAME -> Optional.of(this.username);
+            case FIRST_NAME -> Optional.of(this.firstName);
+            case LAST_NAME -> Optional.of(this.lastName);
+            case FULL_NAME -> Optional.of(this.getFullName());
         };
     }
 }
