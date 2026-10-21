@@ -22,9 +22,9 @@ import org.springframework.security.authentication.BadCredentialsException;
  * oauth2-proxy), for the {@code http-headers} authentication method.
  *
  * <p>Expects the credentials to be the header multimap produced by {@link
- * HeaderFieldsAuthenticationConverter}. Each user field is read from the first configured header
- * (in priority order, as set in {@link HttpHeadersConfiguration}) that is present with a non-empty
- * value:
+ * HeaderFieldsAuthenticationConverter}. Header names are matched case-insensitively, as HTTP
+ * requires. Each user field is read from the first configured header (in priority order, as set in
+ * {@link HttpHeadersConfiguration}) that is present with a non-empty value:
  *
  * <ul>
  *   <li>The username, first name, and last name are required. If any is missing, authentication is
@@ -121,6 +121,10 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
      * Extracts a required single value from the first candidate header present with a non-empty
      * value.
      *
+     * <p>HTTP header names are case-insensitive, and HTTP/2 and some proxies send them in lower
+     * case, so the configured names must match regardless of case. Values of headers whose names
+     * differ only in case are merged, as HTTP treats them as the same header.
+     *
      * @param headerNames The candidate header names, in priority order.
      * @param headers The request headers.
      * @param field Human-readable name of the field being extracted, used in the error message.
@@ -134,7 +138,8 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
             throws IllegalArgumentException {
 
         for (final String headerName : headerNames) {
-            final Optional<String> result = headers.get(headerName).stream().findFirst();
+            final Optional<String> result =
+                    headers.get(headerName.toLowerCase()).stream().findFirst();
             if (result.isEmpty() || result.get().isEmpty()) {
                 continue;
             }
@@ -153,6 +158,10 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
      * Extracts an optional single value from the first candidate header present with a non-empty
      * value.
      *
+     * <p>HTTP header names are case-insensitive, and HTTP/2 and some proxies send them in lower
+     * case, so the configured names must match regardless of case. Values of headers whose names
+     * differ only in case are merged, as HTTP treats them as the same header.
+     *
      * @param headerNames The candidate header names, in priority order.
      * @param headers The request headers.
      * @return The first value of the first matching header, or {@link Optional#empty()} if none of
@@ -163,7 +172,8 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
             throws IllegalArgumentException {
 
         for (final String headerName : headerNames) {
-            final Optional<String> result = headers.get(headerName).stream().findFirst();
+            final Optional<String> result =
+                    headers.get(headerName.toLowerCase()).stream().findFirst();
             if (result.isEmpty() || result.get().isEmpty()) {
                 continue;
             }
@@ -176,6 +186,10 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
 
     /**
      * Extracts a set of values from the first candidate header which is present.
+     *
+     * <p>HTTP header names are case-insensitive, and HTTP/2 and some proxies send them in lower
+     * case, so the configured names must match regardless of case. Values of headers whose names
+     * differ only in case are merged, as HTTP treats them as the same header.
      *
      * <p>Every value of a repeated header is included, and each value is split on commas. Headers
      * further down the priority order are not consulted once a match is found.
@@ -191,7 +205,7 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
         Stream<String> values = Stream.empty();
 
         for (final String headerName : headerNames) {
-            final Collection<String> value = headers.get(headerName);
+            final Collection<String> value = headers.get(headerName.toLowerCase());
             if (!value.isEmpty()) {
                 values = value.stream();
                 break;

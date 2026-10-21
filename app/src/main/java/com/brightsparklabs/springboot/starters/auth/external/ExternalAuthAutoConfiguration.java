@@ -100,6 +100,9 @@ public class ExternalAuthAutoConfiguration {
     /** Name of the claim containing the client roles of the user. */
     public static final String CLAIM_FIELD_RESOURCE_ACCESS = "resource_access";
 
+    /** Path appended to a Keycloak realm's issuer URL to form its logout URL. */
+    private static final String KEYCLOAK_LOGOUT_PATH = "/protocol/openid-connect/logout";
+
     // -------------------------------------------------------------------------
     // CONSTRUCTION
     // -------------------------------------------------------------------------
@@ -173,17 +176,20 @@ public class ExternalAuthAutoConfiguration {
     // -------------------------------------------------------------------------
 
     /**
-     * Collects the request headers for the {@code http-headers} method.
+     * Collects the configured identity headers from each request for the {@code http-headers}
+     * method.
      *
-     * @return The converter which collects the request headers.
+     * @param configuration The starter configuration, supplying the header names to collect.
+     * @return The converter which collects the identity headers.
      */
     @Bean
     @ConditionalOnProperty(
             prefix = "brightsparklabs.auth",
             name = "method",
             havingValue = "http-headers")
-    public AuthenticationConverter headerFieldsAuthenticationConverter() {
-        return new HeaderFieldsAuthenticationConverter();
+    public AuthenticationConverter headerFieldsAuthenticationConverter(
+            final ExternallyAuthenticatedAuthStarterConfiguration configuration) {
+        return new HeaderFieldsAuthenticationConverter(configuration.headers());
     }
 
     /**
@@ -271,7 +277,7 @@ public class ExternalAuthAutoConfiguration {
                                                     jwt.getClaimAsStringList(CLAIM_FIELD_GROUPS))
                                             .orElse(ImmutableList.of())),
                             getRoles(jwt),
-                            Optional.of(jwt.getIssuer() + "/protocol/openid-connect/logout"));
+                            getLogoutUrl(jwt));
 
             // Return the principal defined by the consumer and make it available to downstream
             // endpoints.
@@ -432,6 +438,16 @@ public class ExternalAuthAutoConfiguration {
     }
 
     /**
+     * Derives the Keycloak logout URL from the token's issuer.
+     *
+     * @param jwt The claims associated with the user.
+     * @return The logout URL, or {@link Optional#empty()} if the token has no issuer.
+     */
+    private static Optional<String> getLogoutUrl(final Jwt jwt) {
+        return Optional.ofNullable(jwt.getIssuer()).map(issuer -> issuer + KEYCLOAK_LOGOUT_PATH);
+    }
+
+    /**
      * Returns the user's roles from the {@value #CLAIM_FIELD_ROLES} claim from:
      *
      * <ol>
@@ -440,10 +456,8 @@ public class ExternalAuthAutoConfiguration {
      *   <li>Within the {@value #CLAIM_FIELD_RESOURCE_ACCESS} claim.
      * </ol>
      *
-     * >
-     *
      * @param jwt The claims associated with the user.
-     * @return The user's groups from the {@value #CLAIM_FIELD_GROUPS} claim.
+     * @return The user's roles merged from all of the above claims.
      */
     private ImmutableSet<String> getRoles(final Jwt jwt) {
 
