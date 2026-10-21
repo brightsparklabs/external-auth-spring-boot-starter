@@ -10,4 +10,4 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          public-key-location: file:./example-app/src/main/resources/keys/test-public.pem
+          public-key-location: file:./src/main/resources/keys/test-public.pem

@@ -7,7 +7,7 @@
 
 package com.brightsparklabs.springboot.starters.auth.external
 
-import static com.brightsparklabs.springboot.starters.auth.external.ExternalAuthAutoConfiguration.*
+import static com.brightsparklabs.springboot.starters.auth.external.JwtClaimsAuthenticationConverter.*
 
 import com.google.common.collect.ImmutableSet
 import com.nimbusds.jose.JWSAlgorithm
@@ -15,8 +15,6 @@ import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
-import org.springframework.core.convert.converter.Converter
-import org.springframework.security.authentication.AbstractAuthenticationToken
 import org.springframework.security.oauth2.core.OAuth2TokenValidator
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult
 import org.springframework.security.oauth2.jwt.Jwt
@@ -31,8 +29,7 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.X509EncodedKeySpec
 
 /**
- * Unit tests for the JWT claims mapping performed by {@link
- * ExternalAuthAutoConfiguration#jwtAuthenticationConverter}.
+ * Unit tests for the JWT claims mapping performed by {@link JwtClaimsAuthenticationConverter}.
  *
  * <p>Each token is decoded and signature-checked with Spring Security's {@link NimbusJwtDecoder},
  * as the resource server does, then mapped by the converter under test. Token expiry is not
@@ -40,7 +37,7 @@ import java.security.spec.X509EncodedKeySpec
  *
  * @author brightSPARK Labs
  */
-class JwtAuthenticationConverterTest extends Specification {
+class JwtClaimsAuthenticationConverterTest extends Specification {
 
     // -------------------------------------------------------------------------
     // CONSTANTS
@@ -54,8 +51,8 @@ class JwtAuthenticationConverterTest extends Specification {
     // -------------------------------------------------------------------------
 
     /** Converter under test, using {@link InternalUser} as the principal. */
-    final Converter<Jwt, ? extends AbstractAuthenticationToken> converter =
-    new ExternalAuthAutoConfiguration().jwtAuthenticationConverter(new IdentityPrincipalConverter())
+    final JwtClaimsAuthenticationConverter converter =
+    new JwtClaimsAuthenticationConverter(new IdentityPrincipalConverter())
 
     // -------------------------------------------------------------------------
     // TESTS
