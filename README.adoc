@@ -5,52 +5,324 @@
 
 A Spring Boot starter which allows your service to trust authentication from an external identity provider.
 
-Currently focused around supporting [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy).
+Currently focused around supporting https://github.com/oauth2-proxy/oauth2-proxy[oauth2-proxy].
 
 == Compatibility
 
 [cols="3,3,3,3"]
 |===
-| Bundle Version | Spring Boot Version | Java Version | Notes
+| Starter Version | Spring Boot Version | Java Version | Notes
 
-| 1.x.y          | TBC                |  TBC          | Initial release
-| 0.x.y          | TBC                |  TBC          | Initial release
+| 1.x.y
+| 4.0.x
+| 25
+| Initial release.
 |===
 
 == Usage
 
-TBD
+. Include the starter (e.g. via Gradle).
++
+[source,groovy]
+----
+// build.gradle
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "com.brightsparklabs:external-auth-spring-boot-starter:${version}"
+}
+----
+
+. Select and configure an authentication method in your configuration file.
++
+[source,yaml]
+----
+# application.yml
+
+brightsparklabs:
+  auth:
+    # Select exactly one method.
+
+    # The external identity provider supplies details of the authenticated user via HTTP headers.
+    #method: http-headers
+    # Optionally configure which headers map to the internal user properties.
+    # If multiple headers are present, the first one in the priority list is used.
+    # Header names are matched case-insensitively.
+    #headers:
+    #  username-header-fields:
+    #    - "X-Auth-Request-Preferred-Username"
+    #    - "X-Forwarded-Preferred-Username"
+    #    - "X-Auth-Username"
+    #  first-name-header-fields:
+    #    - "X-Auth-Request-Given-Name"
+    #    - "X-Forwarded-Given-Name"
+    #    - "X-Auth-Given-Name"
+    #  last-name-header-fields:
+    #    - "X-Auth-Request-Family-Name"
+    #    - "X-Forwarded-Family-Name"
+    #    - "X-Auth-Family-Name"
+    #  email-header-fields:
+    #    - "X-Auth-Request-Email"
+    #    - "X-Forwarded-Email"
+    #    - "X-Auth-Email"
+    #  groups-header-fields:
+    #    - "X-Auth-Request-Groups"
+    #    - "X-Forwarded-Groups"
+    #    - "X-Auth-Groups"
+    #  roles-header-fields:
+    #    - "X-Auth-Request-Roles"
+    #    - "X-Forwarded-Roles"
+    #    - "X-Auth-Roles"
+
+    # The external identity provider supplies details of the authenticated user via a JSON Web Token (JWT).
+    # Supply the issuer URI or public key via spring.security.oauth2.resourceserver.jwt (see below).
+    #method: jwt
+
+    # The consuming application supplies its own converter and provider beans (see Extending).
+    #method: custom
+
+    # DEVELOPMENT ONLY - every request is authenticated as the user defined here.
+    method: dev
+    user:
+      first-name: Test
+      last-name: User
+      username: test.user
+      email: test.user@email.test
+      groups:
+        - GROUP_1
+        - GROUP_2
+        - GROUP_3
+      roles:
+        - ROLE_1
+        - ROLE_2
+        - ROLE_3
+
+# Only applicable when method: jwt is set.
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Use one or the other.
+          issuer-uri: http://localhost:8180/realms/example
+          public-key-location: file:/path/to/public-key.pem
+----
+
+. If needed, configure a custom principal converter via a `@Bean`.
++
+[source,java]
+----
+@Configuration
+public class ExampleConfiguration {
+    @Bean
+    public PrincipalConverter<MyUser> principalConverter() {
+        return new PrincipalConverter<MyUser>() {
+            @Override
+            public Class<MyUser> principalType() {
+                return MyUser.class;
+            }
+
+            // ...
+        };
+    }
+}
+----
+
+. Access your server and ensure:
+.. If using `method: http-headers`, all mandatory headers (username, first name and last name) are provided in the request.
+.. If using `method: jwt`, a valid JWT is in the header `Authorization: Bearer <jwt>`.
+
+WARNING: The `dev` method authenticates every request as the configured user.
+It must never be enabled in Staging or Production.
+
+IMPORTANT: The `http-headers` method trusts the headers implicitly.
+The application must only be reachable via the authenticating proxy, and the proxy must strip any client-supplied values for the configured headers.
+
+Only the configured header names are read from each request.
+Other headers (e.g. `Authorization` and `Cookie`) are never captured by the starter.
+
+== Authentication Event Listeners
+
+To be notified of authentication outcomes (e.g. for auditing or metrics), declare one or more `AuthenticationEventListener` beans.
+Every listener bean is notified, in `@Order` order, regardless of the authentication method in use.
+
+[source,java]
+----
+@Bean
+public AuthenticationEventListener auditListener() {
+    return new AuthenticationEventListener() {
+        @Override
+        public void onAuthenticationSuccess(final InternalUser authenticatedUser) {
+            // E.g. record a successful login.
+        }
+
+        @Override
+        public void onAuthenticationDenied(final AuthenticationDeniedException exception) {
+            // E.g. record an invalid or expired credential.
+        }
+
+        @Override
+        public void onAuthenticationError(final AuthenticationServiceException exception) {
+            // E.g. alert that the identity provider is unreachable.
+        }
+    };
+}
+----
+
+All callbacks are optional, as each has a no-op default implementation.
+
+[horizontal]
+`onAuthenticationSuccess`:: The user was authenticated.
+`onAuthenticationDenied`:: The credentials were rejected (e.g. missing headers, or an invalid, expired or forged token).
+`onAuthenticationError`:: The credentials could not be verified due to an infrastructure failure (e.g. the identity provider being unreachable).
+
+A refused authorisation (e.g. a `403` due to a missing role) is not an authentication outcome, so listeners are not notified of it.
+
+== MDC
+
+A property of the authenticated user is automatically added to the SLF4J MDC (Mapped Diagnostic Context) for the duration of each request.
+This allows the user to be included in every log line, e.g. via `%X{req.username}` in the logging pattern.
+
+The default MDC key is `req.username`.
+The default property is `username`, however `email`, `first-name`, `last-name`, and `full-name` are also supported.
+If the selected property has no value for the user (e.g. no email was supplied), nothing is added to the MDC.
+
+These can be changed by adding the following to the configuration:
+
+[source,yaml]
+----
+# application.yml
+
+brightsparklabs:
+  auth:
+    # Key in the MDC that the authenticated user's username is stored against.
+    mdc-username-field: theUser
+    # Property of the authenticated user to store in the MDC.
+    principal-field: email
+----
+
+Spring Security also exposes the authenticated principal to application code via `HttpServletRequest#getUserPrincipal()`.
+
+== Extending
+
+To use your own `AuthenticationConverter` and `AuthenticationProvider` (i.e. instead of the bundled `jwt`/`http-headers`/`dev` methods), select the `custom` method.
+The starter then supplies neither bean, but still wires yours into its standard filter chain, so the MDC, `401` handling, and event listeners all apply.
+
+. Select the `custom` method in your configuration file.
++
+[source,yaml]
+----
+# application.yml
+
+brightsparklabs:
+  auth:
+    method: custom
+----
+
+. Define your own implementations of the `AuthenticationConverter` and `AuthenticationProvider` interfaces.
++
+[source,java]
+----
+public class MyAuthenticationConverter implements AuthenticationConverter {
+    @Override
+    public Authentication convert(final HttpServletRequest request) {
+        // Return the values you intend to use as the credentials in your AuthenticationProvider.
+        return new PreAuthenticatedAuthenticationToken(credentials, credentials);
+    }
+}
+
+public class MyAuthenticationProvider implements AuthenticationProvider {
+    @Override
+    public Authentication authenticate(final Authentication authentication)
+            throws AuthenticationException {
+        final InternalUser user = doAuthenticate(authentication.getCredentials());
+
+        // ...
+
+        // Ensure that you return a PreAuthenticatedAuthenticationToken with your specified principal.
+        return new PreAuthenticatedAuthenticationToken(
+                principalConverter.convertToPrincipal(user),
+                authentication.getCredentials(),
+                toAuthorities(user));
+    }
+}
+----
++
+TIP: Extending `ExternalAuthenticationProvider` instead only requires implementing `doAuthenticate`.
+It converts the user to your principal and derives the authorities from the user's roles.
+
+. Supply them as `@Bean` methods in a `@Configuration` class.
+Exactly one bean of each type must be declared, otherwise the application fails to start.
++
+[source,java]
+----
+@Bean
+public AuthenticationConverter myAuthenticationConverter() {
+    return new MyAuthenticationConverter();
+}
+
+@Bean
+public AuthenticationProvider myAuthenticationProvider(
+        final PrincipalConverter<?> principalConverter) {
+    return new MyAuthenticationProvider(principalConverter);
+}
+----
++
+TIP: To switch between your method and a bundled one (e.g. `dev` locally), annotate both beans with `@ConditionalOnProperty(prefix = "brightsparklabs.auth", name = "method", havingValue = "custom")`.
 
 == Development
 
-- Publish new versions via:
+=== Prerequisites
 
-```bash
+* Java 25 (see `.sdkmanrc`).
+* Podman, to run Keycloak for the `jwt-keycloak` example profile only.
+
+=== Build and Test
+
+[source,bash]
+----
+# Compile, run the tests, and check formatting.
+./gradlew check
+
+# Generate a code coverage report.
+./gradlew jacocoTestReport
+----
+
+=== Publish
+
+Publish new versions via:
+
+[source,bash]
+----
 # Set env vars.
 export ORG_GRADLE_PROJECT_signingKey=<secrets.PGP_SIGNING_KEY>
 export ORG_GRADLE_PROJECT_signingPassword=<secrets.PGP_SIGNING_PASSWORD>
 export ORG_GRADLE_PROJECT_mavenCentralUsername=<secrets.MAVEN_CENTRAL_USERNAME>
 export ORG_GRADLE_PROJECT_mavenCentralPassword=<secrets.MAVEN_CENTRAL_PASSWORD>
-# Run the publishToMavenCentral gradle task
+# Run the publishToMavenCentral gradle task.
 ./gradlew publishToMavenCentral
-```
+----
 
 === Example Application
 
 The `example-app` subproject is a small web server which uses the starter.
 It is intended for testing the starter by hand and is not published.
 
-It currently exercises the JWT method only, via one of two Spring profiles:
+It provides a Spring profile per authentication method:
 
 [horizontal]
 `jwt-local`:: Validates tokens against a committed, test-only RSA public key.
-`jwt-keycloak`:: Validates tokens issued by a local Keycloak instance running in Docker.
+`jwt-keycloak`:: Validates tokens issued by a local Keycloak instance running in a container.
+`dev`:: Provides a dummy user as the principal. Only for use in developer mode.
+`http-headers`:: Extracts user properties from HTTP headers passed by the trusted reverse proxy.
 
 The application exposes the following endpoints:
 
 [cols="3,6,3"]
 |===
-| Endpoint | Behaviour | Required authority
+| Endpoint | Behaviour | Required authority (role)
 
 | `GET /api/me`
 | Returns the authenticated user, as resolved by the starter.
@@ -61,7 +333,9 @@ The application exposes the following endpoints:
 | `admin`.
 |===
 
-Each log line includes the MDC username (for example `[user=alice]`), so the starter's MDC population can be checked in the output.
+Each log line includes the MDC username, so the starter's MDC population can be checked in the output.
+The example application stores the user's email (`principal-field: email`), so log lines show e.g. `[user=joe@example.com]`.
+It also registers an example `AuthenticationEventListener` which logs every authentication outcome.
 
 ==== Using the `jwt-local` Profile
 
@@ -77,7 +351,7 @@ Mint a token in a second terminal, then call the application:
 [source,bash]
 ----
 # Mint a token for a user with the admin role.
-TOKEN=$(./gradlew -q :example-app:mintJwt --args='--username=alice --roles=admin --groups=engineering')
+TOKEN=$(./gradlew -q :example-app:mintJwt --args='--username=joe --roles=admin --groups=engineering')
 
 curl -H "Authorization: Bearer ${TOKEN}" localhost:8080/api/me
 curl -H "Authorization: Bearer ${TOKEN}" localhost:8080/api/admin
@@ -103,7 +377,7 @@ Start Keycloak, which imports the `example` realm from `example-app/docker/keycl
 
 [source,bash]
 ----
-docker compose -f example-app/docker/compose.yaml up -d
+podman compose -f example-app/docker/compose.yaml up -d
 ----
 
 The Keycloak admin console is available at http://localhost:8180 (`admin` / `admin`).
@@ -149,8 +423,66 @@ Stop Keycloak once finished:
 
 [source,bash]
 ----
-docker compose -f example-app/docker/compose.yaml down
+podman compose -f example-app/docker/compose.yaml down
 ----
+
+==== Using the `dev` Profile
+
+Start the application:
+
+[source,bash]
+----
+./gradlew :example-app:bootRun --args='--spring.profiles.active=dev'
+----
+
+All requests are authenticated as the `test.user` dummy user with the following attributes:
+
+[source,yaml]
+----
+user:
+  first-name: Test
+  last-name: User
+  username: test.user
+  email: test.user@email.test
+  groups:
+    - GROUP_1
+    - GROUP_2
+    - GROUP_3
+  roles:
+    - ROLE_1
+    - ROLE_2
+    - ROLE_3
+    # Uncomment to test access to the /api/admin endpoint.
+    #- admin
+----
+
+==== Using the `http-headers` Profile
+
+Start the application:
+
+[source,bash]
+----
+./gradlew :example-app:bootRun --args='--spring.profiles.active=http-headers'
+----
+
+Supply user attributes in each request via the `X-Auth-*` headers, as the authenticating proxy would.
+Header names are matched case-insensitively.
+A repeated groups or roles header contributes all of its values, and each value may be comma-separated.
+E.g.
+
+[source,bash]
+----
+curl -H 'X-Auth-Username: test.user' \
+    -H 'X-Auth-Given-Name: Test' \
+    -H 'X-Auth-Family-Name: User' \
+    -H 'X-Auth-Email: test.user@example.test' \
+    -H 'X-Auth-Roles: ROLE_1,ROLE_2' \
+    -H 'X-Auth-Groups: GROUP_1' \
+    -H 'X-Auth-Groups: GROUP_2' \
+    localhost:8080/api/me
+----
+
+Add `admin` to the `X-Auth-Roles` header to access the `/api/admin` endpoint.
 
 ==== Expected Responses
 
@@ -158,15 +490,15 @@ docker compose -f example-app/docker/compose.yaml down
 |===
 | Request | `/api/me` | `/api/admin`
 
-| Valid token with the `admin` role.
+| Valid credentials with the `admin` role.
 | `200`
 | `200`
 
-| Valid token without the `admin` role.
+| Valid credentials without the `admin` role.
 | `200`
 | `403`
 
-| No token, or an expired, forged or malformed token.
+| No credentials, or an expired, forged or malformed token, or missing mandatory headers.
 | `401`
 | `401`
 |===

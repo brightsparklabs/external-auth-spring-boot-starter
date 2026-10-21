@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.stream.Stream;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationConverter;
@@ -63,7 +64,7 @@ public class HeaderFieldsAuthenticationConverter implements AuthenticationConver
                                 configuration.groupsHeaderFields(),
                                 configuration.rolesHeaderFields())
                         .flatMap(Collection::stream)
-                        .map(String::toLowerCase)
+                        .map(header -> header.toLowerCase(Locale.ROOT))
                         .collect(ImmutableSet.toImmutableSet());
     }
 
@@ -96,7 +97,7 @@ public class HeaderFieldsAuthenticationConverter implements AuthenticationConver
                 .forEachRemaining(
                         headerName -> {
                             // Convert to lower case for case insensitivity.
-                            final String lowercaseHeaderName = headerName.toLowerCase();
+                            final String lowercaseHeaderName = headerName.toLowerCase(Locale.ROOT);
                             if (identityHeaderNames.contains(lowercaseHeaderName)) {
                                 headers.putAll(
                                         lowercaseHeaderName,

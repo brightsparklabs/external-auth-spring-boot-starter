@@ -38,7 +38,7 @@ import java.util.UUID;
  * <p>Supported arguments (all optional, in {@code --name=value} form):
  *
  * <ul>
- *   <li>{@code --username} The {@code preferred_username} claim. Defaults to {@code alice}.
+ *   <li>{@code --username} The {@code preferred_username} claim. Defaults to {@code joe}.
  *   <li>{@code --first-name} The {@code given_name} claim. Defaults to the capitalised username.
  *   <li>{@code --last-name} The {@code family_name} claim. Defaults to {@code Example}.
  *   <li>{@code --email} The {@code email} claim. Defaults to {@code <username>@example.com}.
@@ -91,7 +91,7 @@ public final class TestJwtMinter {
     public static void main(final String[] args)
             throws IOException, GeneralSecurityException, JOSEException {
         final Map<String, String> options = parseArguments(args);
-        final String username = options.getOrDefault("username", "alice");
+        final String username = options.getOrDefault("username", "joe");
         final long expiresInSeconds =
                 Long.parseLong(
                         options.getOrDefault(

@@ -12,6 +12,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -139,7 +140,7 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
 
         for (final String headerName : headerNames) {
             final Optional<String> result =
-                    headers.get(headerName.toLowerCase()).stream().findFirst();
+                    headers.get(headerName.toLowerCase(Locale.ROOT)).stream().findFirst();
             if (result.isEmpty() || result.get().isEmpty()) {
                 continue;
             }
@@ -173,7 +174,7 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
 
         for (final String headerName : headerNames) {
             final Optional<String> result =
-                    headers.get(headerName.toLowerCase()).stream().findFirst();
+                    headers.get(headerName.toLowerCase(Locale.ROOT)).stream().findFirst();
             if (result.isEmpty() || result.get().isEmpty()) {
                 continue;
             }
@@ -205,7 +206,7 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
         Stream<String> values = Stream.empty();
 
         for (final String headerName : headerNames) {
-            final Collection<String> value = headers.get(headerName.toLowerCase());
+            final Collection<String> value = headers.get(headerName.toLowerCase(Locale.ROOT));
             if (!value.isEmpty()) {
                 values = value.stream();
                 break;

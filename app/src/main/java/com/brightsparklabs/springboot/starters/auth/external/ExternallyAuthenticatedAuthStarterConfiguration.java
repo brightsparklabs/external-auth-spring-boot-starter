@@ -257,6 +257,16 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
          * <p>DO NOT USE THIS IN PRODUCTION.
          */
         DEV,
+
+        /**
+         * The consuming application supplies its own {@code AuthenticationConverter} and {@code
+         * AuthenticationProvider} beans.
+         *
+         * <p>The starter supplies neither, but still wires the consumer's beans into its standard
+         * filter chain, so the MDC, {@code 401} handling, and event listener support all apply.
+         * Exactly one bean of each type must be declared.
+         */
+        CUSTOM,
     }
 
     /**
