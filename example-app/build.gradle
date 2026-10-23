@@ -34,9 +34,8 @@ dependencies {
     // The starter under test.
     implementation project(':app')
 
-    // Web layer and JWT resource server support (the starter only declares these internally).
+    // Web layer (the starter expects the consuming application to supply this).
     implementation libs.spring.boot.starter.web
-    implementation libs.spring.boot.starter.oauth2.resource.server
 }
 
 // -----------------------------------------------------------------------------

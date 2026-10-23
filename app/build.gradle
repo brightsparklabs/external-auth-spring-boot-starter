@@ -14,6 +14,9 @@ plugins {
     // Apply the brightSPARK Labs plugin for standardisation.
     alias(libs.plugins.com.brightsparklabs.gradle.baseline)
 
+    // Apply the java-library plugin to separate API dependencies from implementation details.
+    id 'java-library'
+
     // Apply the groovy plugin to also add support for Groovy (needed for Spock)
     id 'groovy'
 
@@ -57,9 +60,14 @@ dependencies {
     // This dependency is used by the application.
     implementation libs.guava
 
+    /* Public API. Types from these are exposed in the starter's public signatures (e.g.
+     * `AuthenticationProvider`, `AuthenticatedPrincipal`, `Jwt`), so consumers need them on their
+     * compile classpath.
+     */
+    api libs.spring.boot.starter.security
+    api libs.spring.boot.starter.oauth2.resource.server
+
     // Core runtime.
-    implementation libs.spring.boot.starter.security
-    implementation libs.spring.boot.starter.oauth2.resource.server
     implementation libs.spring.boot.autoconfigure
 
     // Jakarta Bean Validation for configuration models.
@@ -100,6 +108,15 @@ project.description  = 'Spring Boot Starter for trusting externally authenticate
 project.ext.url      = 'https://github.com/brightsparklabs/external-auth-spring-boot-starter'
 project.ext.scm      = 'scm:git@github.com:brightsparklabs/external-auth-spring-boot-starter.git'
 
+// -----------------------------------------------------------------------------
+// ARTIFACT NAMING
+// -----------------------------------------------------------------------------
+
+// By default the name will be the folder name. Prepend `teraflow-` for clarity.
+// This is for the JAR files.
+base {
+    archivesName = 'external-auth-spring-boot-starter'
+}
 
 // -----------------------------------------------------------------------------
 // VARIABLES
@@ -128,8 +145,19 @@ publishing {
             version = project.version
             from components.java
 
+            /* Publish the concrete versions resolved at build time (e.g. from the Spring Boot
+             * BOM) so the published POM and Gradle module metadata are self-contained, without
+             * exposing the BOM itself to consumers.
+             */
+            versionMapping {
+                allVariants {
+                    fromResolutionResult()
+                }
+            }
+
             // Maven Central requires specific POM attributes.
             pom {
+                artifactId = base.archivesName.get()
                 name = project.name
                 description = project.description
                 url = project.url
