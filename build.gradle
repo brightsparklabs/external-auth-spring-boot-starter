@@ -1,0 +1,21 @@
+/*
+ * Created by brightSPARK Labs
+ * www.brightsparklabs.com
+ */
+
+/*
+ * Root build script.
+ *
+ * Plugins applied by more than one subproject are declared here with `apply false` so they are
+ * loaded once, by the root project's classloader, and shared by all subprojects. Without this,
+ * each subproject loads its own copy and plugins which share build services between projects
+ * (such as Spotless, applied via the baseline plugin) fail to configure.
+ */
+
+// -----------------------------------------------------------------------------
+// PLUGINS
+// -----------------------------------------------------------------------------
+
+plugins {
+    alias(libs.plugins.com.brightsparklabs.gradle.baseline) apply false
+}
