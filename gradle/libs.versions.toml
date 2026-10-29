@@ -1,0 +1,74 @@
+
+# We use this TOML file as a version catalog (see
+# https://docs.gradle.org/current/userguide/version_catalogs.html) to
+# consolidate all of our dependency version declarations in one place.
+# ______________________________________________________________________________
+#
+# Created by brightSPARK Labs
+# www.brightsparklabs.com
+
+
+# ------------------------------------------------------------------------------
+# VERSIONS
+# ------------------------------------------------------------------------------
+
+[versions]
+
+# --- Shared / cross-cutting ---------------------------------------------------
+groovy = "5.0.5"
+guava = "33.4.6-jre"
+immutables = "2.12.2"
+
+# --- Spring Boot --------------------------------------------------------------
+spring-boot = "4.0.6"
+
+# --- Testing -------------------------------------------------------------------
+junit = "4.13.2"
+spock-core = "2.4-groovy-5.0"
+
+# --- Gradle plugins ------------------------------------------------------------
+
+plugin-bsl-baseline = "7.1.0"
+plugin-jreleaser = "1.26.0"
+
+# ------------------------------------------------------------------------------
+# LIBRARIES
+# ------------------------------------------------------------------------------
+
+[libraries]
+
+# --- Shared / cross-cutting ---------------------------------------------------
+groovy = { module = "org.apache.groovy:groovy", version.ref = "groovy" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+
+# --- Spring Boot --------------------------------------------------------------
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot"}
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-oauth2-resource-server = { module = "org.springframework.boot:spring-boot-starter-oauth2-resource-server" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+spring-boot-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
+
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
+
+# --- Immutables --------------------------------------------------------------
+# Compile only.
+org-immutables-value-annotations = { module = "org.immutables:value-annotations", version.ref = "immutables" }
+
+# Annotation processor.
+org-immutables-value = { module = "org.immutables:value", version.ref = "immutables" }
+
+# --- Testing -------------------------------------------------------------------
+junit = { module = "junit:junit", version.ref = "junit" }
+spock-core = { module = "org.spockframework:spock-core", version.ref = "spock-core" }
+
+# ------------------------------------------------------------------------------
+# PLUGINS
+# ------------------------------------------------------------------------------
+
+[plugins]
+com-brightsparklabs-gradle-baseline = { id = "com.brightsparklabs.gradle.baseline", version.ref = "plugin-bsl-baseline" }
+org-jreleaser = { id = "org.jreleaser", version.ref = "plugin-jreleaser" }
+org-springframework-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

@@ -1,0 +1,29 @@
+
+brightsparklabs:
+  auth:
+    method: http-headers
+    headers:
+      username-header-fields:
+        - "X-Auth-Request-Preferred-Username"
+        - "X-Forwarded-Preferred-Username"
+        - "X-Auth-Username"
+      first-name-header-fields:
+        - "X-Auth-Request-Given-Name"
+        - "X-Forwarded-Given-Name"
+        - "X-Auth-Given-Name"
+      last-name-header-fields:
+        - "X-Auth-Request-Family-Name"
+        - "X-Forwarded-Family-Name"
+        - "X-Auth-Family-Name"
+      email-header-fields:
+        - "X-Auth-Request-Email"
+        - "X-Forwarded-Email"
+        - "X-Auth-Email"
+      groups-header-fields:
+        - "X-Auth-Request-Groups"
+        - "X-Forwarded-Groups"
+        - "X-Auth-Groups"
+      roles-header-fields:
+        - "X-Auth-Request-Roles"
+        - "X-Forwarded-Roles"
+        - "X-Auth-Roles"

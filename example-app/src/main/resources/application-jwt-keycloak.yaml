@@ -1,0 +1,13 @@
+# Validates JWTs issued by the Keycloak instance in example-app/docker/compose.yaml.
+# Start it with: docker compose -f example-app/docker/compose.yaml up -d
+
+brightsparklabs:
+  auth:
+    method: jwt
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/example

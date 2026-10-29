@@ -1,0 +1,318 @@
+/*
+ * Maintained by brightSPARK Labs.
+ * www.brightsparklabs.com
+ *
+ * Refer to LICENSE at repository root for license details.
+ */
+
+package com.brightsparklabs.springboot.starters.auth.external;
+
+import com.brightsparklabs.springboot.starters.auth.external.ExternallyAuthenticatedAuthStarterConfiguration.ValidExternalAuthDevConfiguration;
+import com.google.common.collect.ImmutableList;
+import jakarta.annotation.Nullable;
+import jakarta.validation.Constraint;
+import jakarta.validation.ConstraintValidator;
+import jakarta.validation.ConstraintValidatorContext;
+import jakarta.validation.Payload;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.List;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.validation.annotation.Validated;
+
+/**
+ * Binds the {@code brightsparklabs.auth} configuration tree used by the externally authenticated
+ * auth starter.
+ *
+ * <p>The active authentication method is selected via {@link #method()}.
+ *
+ * @param method The authentication method to use.
+ * @param mdcUsernameField Key in the MDC that the authenticated user's username is stored against,
+ *     used for access logging. Shared by all methods. Default: "req.username".
+ * @param principalField The property on the user principal that should act as the user's username.
+ *     If left {@code null} then the {@link MdcPrincipalUsernameField#USERNAME} field is used.
+ * @param user The user to use for the {@link AuthMethod#DEV} method. Ignored otherwise.
+ * @param headers The header fields to read the user from for the {@link AuthMethod#HTTP_HEADERS}
+ *     method. Defaults to {@link HttpHeadersConfiguration#DEFAULT_INSTANCE} when that method is in
+ *     use and no value is supplied. Ignored otherwise.
+ * @author brightSPARK Labs
+ */
+@Validated
+@ValidExternalAuthDevConfiguration
+@ConfigurationProperties(prefix = "brightsparklabs.auth")
+public record ExternallyAuthenticatedAuthStarterConfiguration(
+        @NotNull AuthMethod method,
+        @DefaultValue("req.username") String mdcUsernameField,
+        MdcPrincipalUsernameField principalField,
+        // NOTE: Cannot use Optional here as Spring Boot doesn't populate them correctly when they
+        // are not supplied in config.
+        @Valid @Nullable InternalUser user,
+        @Nullable HttpHeadersConfiguration headers) {
+
+    // -------------------------------------------------------------------------
+    // CONSTRUCTION
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a new configuration, applying the default header fields when the {@link
+     * AuthMethod#HTTP_HEADERS} method is in use and no header configuration is supplied.
+     */
+    public ExternallyAuthenticatedAuthStarterConfiguration {
+
+        // Provide a default header config value if nothing is provided.
+        if (method == AuthMethod.HTTP_HEADERS && headers == null) {
+            headers = HttpHeadersConfiguration.DEFAULT_INSTANCE;
+        }
+
+        if (principalField == null) {
+            principalField = MdcPrincipalUsernameField.USERNAME;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // INNER CLASSES
+    // -------------------------------------------------------------------------
+
+    /**
+     * Configures which request headers the {@link AuthMethod#HTTP_HEADERS} method reads the user's
+     * details from.
+     *
+     * <p>Each component lists the candidate header names to attempt, in priority order. Any
+     * component that is {@code null} or empty falls back to its default set of headers.
+     *
+     * <p>E.g. if given the list {@code
+     * ["X-Auth-Request-Preferred-Username","X-Forwarded-Preferred-Username","X-Auth-Username"]}
+     * then the system will use the {@code X-Auth-Request-Preferred-Username} header value if
+     * present, otherwise it will check {@code X-Forwarded-Preferred-Username} then {@code
+     * X-Auth-Username}.
+     *
+     * @param usernameHeaderFields The headers to read the username from. Default: {@link
+     *     #DEFAULT_USERNAME_HEADER_FIELDS}.
+     * @param firstNameHeaderFields The headers to read the first name from. Default: {@link
+     *     #DEFAULT_FIRST_NAME_HEADER_FIELDS}.
+     * @param lastNameHeaderFields The headers to read the last name from. Default: {@link
+     *     #DEFAULT_LAST_NAME_HEADER_FIELDS}.
+     * @param emailHeaderFields The headers to read the email address from. Default: {@link
+     *     #DEFAULT_EMAIL_HEADER_FIELDS}.
+     * @param groupsHeaderFields The headers to read the groups the user is a member of from.
+     *     Default: {@link #DEFAULT_GROUPS_HEADER_FIELDS}.
+     * @param rolesHeaderFields The headers to read the user's roles from. Default: {@link
+     *     #DEFAULT_ROLES_HEADER_FIELDS}.
+     */
+    public record HttpHeadersConfiguration(
+            List<String> usernameHeaderFields,
+            List<String> firstNameHeaderFields,
+            List<String> lastNameHeaderFields,
+            List<String> emailHeaderFields,
+            List<String> groupsHeaderFields,
+            List<String> rolesHeaderFields) {
+
+        /**
+         * The default header fields to attempt to retrieve the username from in order.
+         *
+         * <p>The values chosen align with the <a
+         * href="https://oauth2-proxy.github.io/oauth2-proxy/configuration/overview/#header-options">current
+         * OAuth2 Proxy header values</a> while retaining support for legacy values at a lower
+         * priority.
+         */
+        private static final List<String> DEFAULT_USERNAME_HEADER_FIELDS =
+                ImmutableList.of(
+                        "X-Auth-Request-Preferred-Username",
+                        "X-Forwarded-Preferred-Username",
+                        "X-Auth-Username");
+
+        /** The default header fields to attempt to retrieve the first name from in order. */
+        private static final List<String> DEFAULT_FIRST_NAME_HEADER_FIELDS =
+                ImmutableList.of(
+                        "X-Auth-Request-Given-Name", "X-Forwarded-Given-Name", "X-Auth-Given-Name");
+
+        /** The default header fields to attempt to retrieve the last name from in order. */
+        private static final List<String> DEFAULT_LAST_NAME_HEADER_FIELDS =
+                ImmutableList.of(
+                        "X-Auth-Request-Family-Name",
+                        "X-Forwarded-Family-Name",
+                        "X-Auth-Family-Name");
+
+        /** The default header fields to attempt to retrieve the email from in order. */
+        private static final List<String> DEFAULT_EMAIL_HEADER_FIELDS =
+                ImmutableList.of("X-Auth-Request-Email", "X-Forwarded-Email", "X-Auth-Email");
+
+        /** The default header fields to attempt to retrieve the groups from in order. */
+        private static final List<String> DEFAULT_GROUPS_HEADER_FIELDS =
+                ImmutableList.of("X-Auth-Request-Groups", "X-Forwarded-Groups", "X-Auth-Groups");
+
+        /** The default header fields to attempt to retrieve the roles from in order. */
+        private static final List<String> DEFAULT_ROLES_HEADER_FIELDS =
+                ImmutableList.of("X-Auth-Request-Roles", "X-Forwarded-Roles", "X-Auth-Roles");
+
+        /** Default instance of this record. */
+        public static HttpHeadersConfiguration DEFAULT_INSTANCE =
+                new HttpHeadersConfiguration(
+                        DEFAULT_USERNAME_HEADER_FIELDS,
+                        DEFAULT_FIRST_NAME_HEADER_FIELDS,
+                        DEFAULT_LAST_NAME_HEADER_FIELDS,
+                        DEFAULT_EMAIL_HEADER_FIELDS,
+                        DEFAULT_GROUPS_HEADER_FIELDS,
+                        DEFAULT_ROLES_HEADER_FIELDS);
+
+        /**
+         * Creates a new header configuration, replacing any {@code null} or empty component with
+         * its default set of headers.
+         */
+        public HttpHeadersConfiguration {
+
+            // When populated via the Spring Boot configuration, unsupplied values may be null. If
+            // so, replace them with the default value.
+            if (usernameHeaderFields == null || usernameHeaderFields.isEmpty()) {
+                usernameHeaderFields = DEFAULT_USERNAME_HEADER_FIELDS;
+            }
+
+            if (firstNameHeaderFields == null || firstNameHeaderFields.isEmpty()) {
+                firstNameHeaderFields = DEFAULT_FIRST_NAME_HEADER_FIELDS;
+            }
+
+            if (lastNameHeaderFields == null || lastNameHeaderFields.isEmpty()) {
+                lastNameHeaderFields = DEFAULT_LAST_NAME_HEADER_FIELDS;
+            }
+
+            if (emailHeaderFields == null || emailHeaderFields.isEmpty()) {
+                emailHeaderFields = DEFAULT_EMAIL_HEADER_FIELDS;
+            }
+
+            if (groupsHeaderFields == null || groupsHeaderFields.isEmpty()) {
+                groupsHeaderFields = DEFAULT_GROUPS_HEADER_FIELDS;
+            }
+
+            if (rolesHeaderFields == null || rolesHeaderFields.isEmpty()) {
+                rolesHeaderFields = DEFAULT_ROLES_HEADER_FIELDS;
+            }
+        }
+    }
+
+    /** Validates that a {@link AuthMethod#DEV} configuration contains a dummy user. */
+    @Target({ElementType.TYPE})
+    @Retention(RetentionPolicy.RUNTIME)
+    @Documented
+    @Constraint(validatedBy = ExternalAuthDevConfigurationValidator.class)
+    public @interface ValidExternalAuthDevConfiguration {
+        /**
+         * Returns the message shown when validation fails.
+         *
+         * @return The validation failure message.
+         */
+        String message() default
+                "A dummy user must be defined when using the dev authentication method.";
+
+        /**
+         * Returns the validation groups this constraint belongs to.
+         *
+         * @return The validation groups.
+         */
+        Class<?>[] groups() default {};
+
+        /**
+         * Returns the payload associated with this constraint.
+         *
+         * @return The constraint payload.
+         */
+        Class<? extends Payload>[] payload() default {};
+    }
+
+    /** Enforces the {@link ValidExternalAuthDevConfiguration} cross-field constraint. */
+    public static class ExternalAuthDevConfigurationValidator
+            implements ConstraintValidator<
+                    ValidExternalAuthDevConfiguration,
+                    ExternallyAuthenticatedAuthStarterConfiguration> {
+
+        /**
+         * Checks that a dummy user is present whenever the {@link AuthMethod#DEV} method is in use.
+         *
+         * <p>A {@code null} configuration is treated as valid so that null handling is left to the
+         * {@link NotNull} and {@link NotBlank} constraints.
+         *
+         * @param value The configuration to validate.
+         * @param context The context in which the constraint is evaluated.
+         * @return {@code true} if the configuration is internally consistent, {@code false}
+         *     otherwise.
+         */
+        @Override
+        public boolean isValid(
+                final ExternallyAuthenticatedAuthStarterConfiguration value,
+                final ConstraintValidatorContext context) {
+            // If the value is null, let @NotBlank or @NotNull handle it.
+            if (value == null) {
+                return true;
+            }
+
+            // If the method is DEV then a user must be provided.
+            return value.method() != AuthMethod.DEV || value.user() != null;
+        }
+    }
+
+    /** The supported authentication methods. */
+    public enum AuthMethod {
+        /**
+         * User principal properties are read from the claims of a JWT bearer token.
+         *
+         * <p>The token is validated by Spring Boot's OAuth2 resource server support, so either
+         * {@code spring.security.oauth2.resourceserver.jwt.issuer-uri} or {@code
+         * spring.security.oauth2.resourceserver.jwt.public-key-location} must also be set.
+         */
+        JWT,
+
+        /** User principal properties are provided via OAuth2 headers. */
+        HTTP_HEADERS,
+
+        /**
+         * A fixed user principal is provided for all requests.
+         *
+         * <p>DO NOT USE THIS IN PRODUCTION.
+         */
+        DEV,
+
+        /**
+         * The consuming application supplies its own {@code AuthenticationConverter} and {@code
+         * AuthenticationProvider} beans.
+         *
+         * <p>The starter supplies neither, but still wires the consumer's beans into its standard
+         * filter chain, so the MDC, {@code 401} handling, and event listener support all apply.
+         *
+         * <p>Exactly one {@code @Bean} method of each type (Converter and Provider) must be
+         * declared somewhere in the consumer's classpath inside a {@link Configuration} class,
+         * otherwise a {@link NoUniqueBeanDefinitionException} or {@link
+         * NoSuchBeanDefinitionException} will be thrown during startup.
+         */
+        CUSTOM,
+    }
+
+    /**
+     * The fields in the {@link InternalUser} that can be inserted into the MDC username request
+     * field.
+     */
+    public enum MdcPrincipalUsernameField {
+        /** Corresponds to {@link InternalUser#username()}. */
+        USERNAME,
+
+        /** Corresponds to {@link InternalUser#firstName()}. */
+        FIRST_NAME,
+
+        /** Corresponds to {@link InternalUser#lastName()}. */
+        LAST_NAME,
+
+        /** Corresponds to {@link InternalUser#getFullName()}. */
+        FULL_NAME,
+
+        /** Corresponds to {@link InternalUser#email()}. */
+        EMAIL
+    }
+}
