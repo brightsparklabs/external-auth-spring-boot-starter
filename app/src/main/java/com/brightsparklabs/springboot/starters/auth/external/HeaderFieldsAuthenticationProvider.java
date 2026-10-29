@@ -18,11 +18,15 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.springframework.security.authentication.BadCredentialsException;
 
+// spotless:off - NOTE: Spotless does not support {@snippet} annotations.
 /**
  * Authenticates users from HTTP headers set by an upstream authenticating proxy (e.g.
  * oauth2-proxy), for the {@code http-headers} authentication method.
  *
- * <p>Expects the credentials to be the header multimap produced by {@link
+ * <p>IMPORTANT: This method trusts the headers implicitly. The application must only be reachable
+ * via the authenticating proxy, which must strip any client-supplied values for these headers.
+ *
+ * <p>The method expects the credentials to be the header multimap produced by {@link
  * HeaderFieldsAuthenticationConverter}. Header names are matched case-insensitively, as HTTP
  * requires. Each user field is read from the first configured header (in priority order, as set in
  * {@link HttpHeadersConfiguration}) that is present with a non-empty value:
@@ -31,15 +35,81 @@ import org.springframework.security.authentication.BadCredentialsException;
  *   <li>The username, first name, and last name are required. If any is missing, authentication is
  *       denied.
  *   <li>The email is optional.
- *   <li>Groups and roles are optional. They are read from the first header which is present, with
- *       each value split on commas.
+ *   <li>Groups and roles are optional. They are read from the first header of a given type which is
+ *       present, with each value split on commas. If the same header is provided multiple times
+ *       with different values, each unique values will also be added.
  * </ul>
  *
- * <p>IMPORTANT: This method trusts the headers implicitly. The application must only be reachable
- * via the authenticating proxy, which must strip any client-supplied values for these headers.
+ * <p>E.g. given the following headers configuration:
+ *
+ * {@snippet lang=yaml :
+ *     headers:
+ *       username-header-fields:
+ *         - "X-Auth-Request-Preferred-Username"
+ *         - "X-Forwarded-Preferred-Username"
+ *         - "X-Auth-Username"
+ *       first-name-header-fields:
+ *         - "X-Auth-Request-Given-Name"
+ *         - "X-Forwarded-Given-Name"
+ *         - "X-Auth-Given-Name"
+ *       last-name-header-fields:
+ *         - "X-Auth-Request-Family-Name"
+ *         - "X-Forwarded-Family-Name"
+ *         - "X-Auth-Family-Name"
+ *       email-header-fields:
+ *         - "X-Auth-Request-Email"
+ *         - "X-Forwarded-Email"
+ *         - "X-Auth-Email"
+ *       groups-header-fields:
+ *         - "X-Auth-Request-Groups"
+ *         - "X-Forwarded-Groups"
+ *         - "X-Auth-Groups"
+ *       roles-header-fields:
+ *         - "X-Auth-Request-Roles"
+ *         - "X-Forwarded-Roles"
+ *         - "X-Auth-Roles"
+ * }
+ *
+ * <p>If the following request were received:
+ *
+ * <pre>
+ *     curl -H 'X-Auth-Username: test.user' \
+ *       -H 'X-Auth-Request-Given-Name: test' \
+ *       -H 'X-Auth-Given-Name: foo' \
+ *       -H 'X-Auth-Request-Family-Name: user' \
+ *       -H 'X-Auth-Request-Family-Name: bar' \
+ *       -H 'X-Auth-Roles: ROLE_1,ROLE_2' \
+ *       -H 'X-Auth-Roles: ROLE_3' \
+ *       -H 'X-Auth-Request-Groups: GROUP_1' \
+ *       -H 'X-Auth-Request-Groups: GROUP_2' \
+ *       -H 'X-Auth-Groups: ANOTHER' \
+ *     localhost:8080/api/me
+ * </pre>
+ *
+ * <p>Then the following user principal would be created:
+ *
+ * {@snippet lang=yaml :
+ *     user:
+ *       # NOTE: 'test' used over 'foo' because of the configured header priority.
+ *       first-name: test
+ *       # NOTE: 'user' used over 'bar' as the former was declared first.
+ *       last-name: user
+ *       username: test.user
+ *       # NOTE: Email is missing as it wasn't provided.
+ *       # NOTE: 'ANOTHER' is excluded from the groups list due to being provided via a different, lower priority header.
+ *       groups:
+ *         - GROUP_1
+ *         - GROUP_2
+ *       # NOTE: Roles are populated via comma-separated values and a second header value.
+ *       roles:
+ *         - ROLE_1
+ *         - ROLE_2
+ *         - ROLE_3
+ * }
  *
  * @author brightSPARK Labs
  */
+// spotless:on - NOTE: Spotless does not support {@snippet} annotations.
 public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationProvider {
 
     // -------------------------------------------------------------------------
@@ -100,13 +170,15 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
         try {
 
             return new InternalUser(
-                    extractHeaderValue(configuration.usernameHeaderFields(), headers, "username"),
-                    extractHeaderValue(
+                    extractHeaderFirstValue(
+                            configuration.usernameHeaderFields(), headers, "username"),
+                    extractHeaderFirstValue(
                             configuration.firstNameHeaderFields(), headers, "first name"),
-                    extractHeaderValue(configuration.lastNameHeaderFields(), headers, "last name"),
-                    extractOptionalHeaderValue(configuration.emailHeaderFields(), headers),
-                    extractHeaderValues(configuration.groupsHeaderFields(), headers),
-                    extractHeaderValues(configuration.rolesHeaderFields(), headers),
+                    extractHeaderFirstValue(
+                            configuration.lastNameHeaderFields(), headers, "last name"),
+                    extractOptionalHeaderFirstValue(configuration.emailHeaderFields(), headers),
+                    extractHeaderAllValues(configuration.groupsHeaderFields(), headers),
+                    extractHeaderAllValues(configuration.rolesHeaderFields(), headers),
                     Optional.empty());
 
         } catch (final IllegalArgumentException ex) {
@@ -132,27 +204,26 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
      * @return The first value of the first matching header.
      * @throws IllegalArgumentException If none of the candidate headers has a non-empty value.
      */
-    private String extractHeaderValue(
+    private String extractHeaderFirstValue(
             final Collection<String> headerNames,
             final Multimap<String, String> headers,
             final String field)
             throws IllegalArgumentException {
 
-        for (final String headerName : headerNames) {
-            final Optional<String> result =
-                    headers.get(headerName.toLowerCase(Locale.ROOT)).stream().findFirst();
-            if (result.isEmpty() || result.get().isEmpty()) {
-                continue;
-            }
-
-            return result.get();
-        }
-
-        throw new IllegalArgumentException(
-                "Request headers did not contain a valid ["
-                        + field
-                        + "] value under configured header names "
-                        + headerNames);
+        return headerNames.stream()
+                // NOTE: Ensure the Locale is consistent with those used in the
+                // HeaderFieldsAuthenticationConverter.
+                .map(header -> headers.get(header.toLowerCase(Locale.ROOT)))
+                .flatMap(Collection::stream)
+                .filter(value -> !value.isEmpty())
+                .findFirst()
+                .orElseThrow(
+                        () ->
+                                new IllegalArgumentException(
+                                        "Request headers did not contain a valid `"
+                                                + field
+                                                + "` value under configured header names "
+                                                + headerNames));
     }
 
     /**
@@ -168,21 +239,17 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
      * @return The first value of the first matching header, or {@link Optional#empty()} if none of
      *     the candidate headers has a non-empty value.
      */
-    private Optional<String> extractOptionalHeaderValue(
+    private Optional<String> extractOptionalHeaderFirstValue(
             final Collection<String> headerNames, final Multimap<String, String> headers)
             throws IllegalArgumentException {
 
-        for (final String headerName : headerNames) {
-            final Optional<String> result =
-                    headers.get(headerName.toLowerCase(Locale.ROOT)).stream().findFirst();
-            if (result.isEmpty() || result.get().isEmpty()) {
-                continue;
-            }
-
-            return result;
-        }
-
-        return Optional.empty();
+        return headerNames.stream()
+                // NOTE: Ensure the Locale is consistent with those used in the
+                // HeaderFieldsAuthenticationConverter.
+                .map(header -> headers.get(header.toLowerCase(Locale.ROOT)))
+                .flatMap(Collection::stream)
+                .filter(value -> !value.isEmpty())
+                .findFirst();
     }
 
     /**
@@ -199,7 +266,7 @@ public class HeaderFieldsAuthenticationProvider extends ExternalAuthenticationPr
      * @param headers The request headers.
      * @return The distinct values, or an empty set if none of the candidate headers is present.
      */
-    private ImmutableSet<String> extractHeaderValues(
+    private ImmutableSet<String> extractHeaderAllValues(
             final Collection<String> headerNames, final Multimap<String, String> headers)
             throws IllegalArgumentException {
 

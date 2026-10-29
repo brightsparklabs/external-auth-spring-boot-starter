@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Optional;
 import org.slf4j.MDC;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.AuthenticatedPrincipal;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -101,7 +102,10 @@ public class AddUserAuthToRequestFilter<P extends AuthenticatedPrincipal>
     private Optional<String> resolveUsername() {
         final Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
+        // Unauthenticated users have no username.
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
             return Optional.empty();
         }
 

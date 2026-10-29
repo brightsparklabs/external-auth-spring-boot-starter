@@ -277,7 +277,7 @@ TIP: To switch between your method and a bundled one (e.g. `dev` locally), annot
 === Prerequisites
 
 * Java 25 (see `.sdkmanrc`).
-* Podman, to run Keycloak for the `jwt-keycloak` example profile only.
+* docker, to run Keycloak for the `jwt-keycloak` example profile only.
 
 === Build and Test
 
@@ -285,9 +285,6 @@ TIP: To switch between your method and a bundled one (e.g. `dev` locally), annot
 ----
 # Compile, run the tests, and check formatting.
 ./gradlew check
-
-# Generate a code coverage report.
-./gradlew jacocoTestReport
 ----
 
 === Publish
@@ -377,7 +374,7 @@ Start Keycloak, which imports the `example` realm from `example-app/docker/keycl
 
 [source,bash]
 ----
-podman compose -f example-app/docker/compose.yaml up -d
+docker compose -f example-app/docker/compose.yaml up -d
 ----
 
 The Keycloak admin console is available at http://localhost:8180 (`admin` / `admin`).
@@ -423,7 +420,7 @@ Stop Keycloak once finished:
 
 [source,bash]
 ----
-podman compose -f example-app/docker/compose.yaml down
+docker compose -f example-app/docker/compose.yaml down
 ----
 
 ==== Using the `dev` Profile

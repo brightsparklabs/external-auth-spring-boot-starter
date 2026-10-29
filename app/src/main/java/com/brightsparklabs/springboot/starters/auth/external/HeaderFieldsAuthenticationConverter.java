@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 import org.springframework.security.core.Authentication;
@@ -64,6 +65,8 @@ public class HeaderFieldsAuthenticationConverter implements AuthenticationConver
                                 configuration.groupsHeaderFields(),
                                 configuration.rolesHeaderFields())
                         .flatMap(Collection::stream)
+                        // NOTE: Using Local.ROOT to ensure that case-conversion behaves
+                        // consistently regardless of OS or JVM settings.
                         .map(header -> header.toLowerCase(Locale.ROOT))
                         .collect(ImmutableSet.toImmutableSet());
     }
@@ -84,27 +87,44 @@ public class HeaderFieldsAuthenticationConverter implements AuthenticationConver
 
         final Enumeration<String> headerNames = request.getHeaderNames();
 
-        // The container does not allow access to the headers, so there is nothing to authenticate.
         if (headerNames == null) {
+            // The container does not allow access to the headers, so there is nothing to
+            // authenticate.
             return null;
         }
 
-        final Multimap<String, String> headers =
-                MultimapBuilder.linkedHashKeys().arrayListValues().build();
+        // Using an arraylist for values as everything will be appended to the end of the list. The
+        // values that expect multiple (i.e. groups and roles) will convert the list to an
+        // ImmutableSet, so we don't need to handle duplicates at this level.
+        final Multimap<String, String> authSpecificHeaders =
+                MultimapBuilder.hashKeys().arrayListValues().build();
 
+        /*
+         * Loop through each of the headers provided to the request and extract the values of the
+         * headers that we have configured to be sensitive to while ignoring headers that aren't
+         * relevant to authentication.
+         * We normalise the header names to all be lowercase as the casing returned by a reverse
+         * proxy isn't guaranteed.
+         * The same header may be supplied multiple times (e.g. for user roles/groups) OR the values
+         * may be comma separated in a single header. We need to accept both possibilities, and the
+         * HeaderFieldsAuthenticationProvider will be responsible for splitting on any comma separated
+         * values.
+         */
         headerNames
                 .asIterator()
                 .forEachRemaining(
                         headerName -> {
                             // Convert to lower case for case insensitivity.
+                            // NOTE: Locale should be left consistent with the one used for the
+                            // identityHeaderNames variable.
                             final String lowercaseHeaderName = headerName.toLowerCase(Locale.ROOT);
                             if (identityHeaderNames.contains(lowercaseHeaderName)) {
-                                headers.putAll(
-                                        lowercaseHeaderName,
-                                        Collections.list(request.getHeaders(headerName)));
+                                final List<String> headerValues =
+                                        Collections.list(request.getHeaders(headerName));
+                                authSpecificHeaders.putAll(lowercaseHeaderName, headerValues);
                             }
                         });
 
-        return new PreAuthenticatedAuthenticationToken(headers, headers);
+        return new PreAuthenticatedAuthenticationToken(authSpecificHeaders, authSpecificHeaders);
     }
 }

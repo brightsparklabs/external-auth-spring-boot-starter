@@ -23,8 +23,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.List;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -35,7 +38,7 @@ import org.springframework.validation.annotation.Validated;
  *
  * @param method The authentication method to use.
  * @param mdcUsernameField Key in the MDC that the authenticated user's username is stored against,
- *     used for access logging. Shared by all methods.
+ *     used for access logging. Shared by all methods. Default: "req.username".
  * @param principalField The property on the user principal that should act as the user's username.
  *     If left {@code null} then the {@link MdcPrincipalUsernameField#USERNAME} field is used.
  * @param user The user to use for the {@link AuthMethod#DEV} method. Ignored otherwise.
@@ -87,12 +90,24 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
      * <p>Each component lists the candidate header names to attempt, in priority order. Any
      * component that is {@code null} or empty falls back to its default set of headers.
      *
-     * @param usernameHeaderFields The headers to read the username from.
-     * @param firstNameHeaderFields The headers to read the first name from.
-     * @param lastNameHeaderFields The headers to read the last name from.
-     * @param emailHeaderFields The headers to read the email address from.
+     * <p>E.g. if given the list {@code
+     * ["X-Auth-Request-Preferred-Username","X-Forwarded-Preferred-Username","X-Auth-Username"]}
+     * then the system will use the {@code X-Auth-Request-Preferred-Username} header value if
+     * present, otherwise it will check {@code X-Forwarded-Preferred-Username} then {@code
+     * X-Auth-Username}.
+     *
+     * @param usernameHeaderFields The headers to read the username from. Default: {@link
+     *     #DEFAULT_USERNAME_HEADER_FIELDS}.
+     * @param firstNameHeaderFields The headers to read the first name from. Default: {@link
+     *     #DEFAULT_FIRST_NAME_HEADER_FIELDS}.
+     * @param lastNameHeaderFields The headers to read the last name from. Default: {@link
+     *     #DEFAULT_LAST_NAME_HEADER_FIELDS}.
+     * @param emailHeaderFields The headers to read the email address from. Default: {@link
+     *     #DEFAULT_EMAIL_HEADER_FIELDS}.
      * @param groupsHeaderFields The headers to read the groups the user is a member of from.
-     * @param rolesHeaderFields The headers to read the user's roles from.
+     *     Default: {@link #DEFAULT_GROUPS_HEADER_FIELDS}.
+     * @param rolesHeaderFields The headers to read the user's roles from. Default: {@link
+     *     #DEFAULT_ROLES_HEADER_FIELDS}.
      */
     public record HttpHeadersConfiguration(
             List<String> usernameHeaderFields,
@@ -102,7 +117,14 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
             List<String> groupsHeaderFields,
             List<String> rolesHeaderFields) {
 
-        /** The default header fields to attempt to retrieve the username from in order. */
+        /**
+         * The default header fields to attempt to retrieve the username from in order.
+         *
+         * <p>The values chosen align with the <a
+         * href="https://oauth2-proxy.github.io/oauth2-proxy/configuration/overview/#header-options">current
+         * OAuth2 Proxy header values</a> while retaining support for legacy values at a lower
+         * priority.
+         */
         private static final List<String> DEFAULT_USERNAME_HEADER_FIELDS =
                 ImmutableList.of(
                         "X-Auth-Request-Preferred-Username",
@@ -264,7 +286,11 @@ public record ExternallyAuthenticatedAuthStarterConfiguration(
          *
          * <p>The starter supplies neither, but still wires the consumer's beans into its standard
          * filter chain, so the MDC, {@code 401} handling, and event listener support all apply.
-         * Exactly one bean of each type must be declared.
+         *
+         * <p>Exactly one {@code @Bean} method of each type (Converter and Provider) must be
+         * declared somewhere in the consumer's classpath inside a {@link Configuration} class,
+         * otherwise a {@link NoUniqueBeanDefinitionException} or {@link
+         * NoSuchBeanDefinitionException} will be thrown during startup.
          */
         CUSTOM,
     }

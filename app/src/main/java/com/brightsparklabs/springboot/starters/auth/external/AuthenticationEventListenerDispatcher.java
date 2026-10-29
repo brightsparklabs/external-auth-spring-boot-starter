@@ -13,12 +13,14 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.event.AbstractAuthenticationFailureEvent;
 import org.springframework.security.authentication.event.AuthenticationFailureServiceExceptionEvent;
 import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
 import org.springframework.security.core.AuthenticationException;
 
+// spotless:off - NOTE: Spotless does not support {@snippet} annotations.
 /**
  * Bridges Spring Security's authentication events to the {@link AuthenticationEventListener} beans
  * registered by consumers.
@@ -27,6 +29,41 @@ import org.springframework.security.core.AuthenticationException;
  * {@code ProviderManager}, which publishes an event for each outcome. Dispatching from those events
  * means listeners are notified consistently regardless of the method in use, without each method
  * needing to thread the listeners through its own code.
+ *
+ * <p>Without this dispatcher, the listener calls would need to be inserted within the various
+ * security beans themselves. E.g.
+ *
+ * {@snippet lang=java :
+ *       @Bean
+ *       public SecurityFilterChain jwtSecurityFilterChain(
+ *             final HttpSecurity http,
+ *             final ObjectProvider<AuthenticationEventListener> listeners)
+ *             throws Exception {
+ *
+ *         http
+ *          // Mixed in with your other HTTP Security configuration options.
+ *          // The success handler needs to be repeated in the provider(s).
+ *          ...
+ *          .exceptionHandling(
+ *                 e ->
+ *                         e.authenticationEntryPoint(
+ *                                 (_, _, ex) -> {
+ *                                     if (ex instanceof AuthenticationServiceException) {
+ *                                         // Error caused by an authentication service
+ *                                         // (E.g. LDAP server is down)
+ *                                         listeners.foreach(
+ *                                                 listener -> listener.onAuthenticationError(ex));
+ *                                     } else {
+ *                                         // All other exceptions are some form of
+ *                                         // authentication denied.
+ *                                         listeners.foreach(
+ *                                                 listener -> listener.onAuthenticationDenied(ex));
+ *                                     }
+ *                                 }));
+ *
+ *         return http.build();
+ *        }
+ * }
  *
  * <p>Events are mapped as follows:
  *
@@ -41,13 +78,17 @@ import org.springframework.security.core.AuthenticationException;
  *
  * @author brightSPARK Labs
  */
+// spotless:on - NOTE: Spotless does not support {@snippet} annotations.
 public final class AuthenticationEventListenerDispatcher {
 
     // -------------------------------------------------------------------------
     // INSTANCE VARIABLES
     // -------------------------------------------------------------------------
 
-    /** Supplies the registered listeners, in {@code @Order} order. */
+    /**
+     * Supplies the registered listeners, in {@link Ordered} order (i.e. the order in which they are
+     * defined, or otherwise ordered using the Spring Boot {@code @Ordered} interface).
+     */
     private final ObjectProvider<AuthenticationEventListener> listeners;
 
     /** Converts the system principal back to an {@link InternalUser}. */
@@ -128,7 +169,8 @@ public final class AuthenticationEventListenerDispatcher {
      *
      * <p>If the exception wraps an original {@link AuthenticationDeniedException} (as thrown by an
      * {@link ExternalAuthenticationProvider}), that original is unwrapped so listeners see the
-     * authenticator's own reason.
+     * authenticator's own reason. This prevents the listener from needing to unravel multiple
+     * levels of wrapped exceptions to get the root cause.
      *
      * @param exception The exception which caused the failure.
      * @return The exception to pass to listeners.
