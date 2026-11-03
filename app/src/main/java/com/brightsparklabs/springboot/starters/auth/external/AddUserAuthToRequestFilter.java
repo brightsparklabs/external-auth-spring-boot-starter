@@ -102,10 +102,11 @@ public class AddUserAuthToRequestFilter<P extends AuthenticatedPrincipal>
     private Optional<String> resolveUsername() {
         final Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
-        // Unauthenticated users have no username.
-        if (authentication == null
+        if (authentication == null // Unauthenticated users have no username.
                 || !authentication.isAuthenticated()
+                // If a user does not log in, Spring Boot gives them a AnonymousAuthenticationToken.
                 || authentication instanceof AnonymousAuthenticationToken) {
+            // User has not authenticated.
             return Optional.empty();
         }
 
