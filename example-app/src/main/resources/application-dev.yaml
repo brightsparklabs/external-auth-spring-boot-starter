@@ -1,0 +1,20 @@
+# Provides a dummy user to use as the principal for development mode.
+
+brightsparklabs:
+  auth:
+    method: dev
+    user:
+      first-name: Test
+      last-name: User
+      username: test.user
+      email: test.user@email.test
+      groups:
+        - GROUP_1
+        - GROUP_2
+        - GROUP_3
+      roles:
+        - ROLE_1
+        - ROLE_2
+        - ROLE_3
+        # Uncomment to test access the /api/admin endpoint.
+        #- admin

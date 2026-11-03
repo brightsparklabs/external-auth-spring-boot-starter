@@ -1,0 +1,66 @@
+/*
+ * Created by brightSPARK Labs
+ * www.brightsparklabs.com
+ */
+
+/*
+ * Example application used to exercise the external auth starter by hand.
+ *
+ * This project is not published.
+ */
+
+// -----------------------------------------------------------------------------
+// PLUGINS
+// -----------------------------------------------------------------------------
+
+plugins {
+    id 'java'
+    alias(libs.plugins.org.springframework.boot)
+    alias(libs.plugins.com.brightsparklabs.gradle.baseline)
+}
+
+// -----------------------------------------------------------------------------
+// REPOSITORIES/DEPENDENCIES
+// -----------------------------------------------------------------------------
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot BOM governs all Spring artefact versions.
+    implementation platform(libs.spring.boot.bom)
+
+    // The starter under test.
+    implementation project(':app')
+
+    // Web layer (the starter expects the consuming application to supply this).
+    implementation libs.spring.boot.starter.web
+}
+
+// -----------------------------------------------------------------------------
+// JAVA VERSION
+// -----------------------------------------------------------------------------
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// TASKS
+// -----------------------------------------------------------------------------
+
+/* Mints a JWT signed with the test-only private key, for use with the `jwt-local` profile.
+ *
+ * Example:
+ *     ./gradlew -q :example-app:mintJwt --args='--username=alice --roles=admin'
+ */
+tasks.register('mintJwt', JavaExec) {
+    group = 'application'
+    description = 'Mints a JWT for the jwt-local profile, signed with the test-only private key.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.brightsparklabs.springboot.starters.auth.external.example.TestJwtMinter'
+    workingDir = projectDir
+}

@@ -1,0 +1,13 @@
+# Validates JWTs against the committed test-only public key.
+# Mint tokens with: ./gradlew -q :example-app:mintJwt --args='--username=alice --roles=admin'
+
+brightsparklabs:
+  auth:
+    method: jwt
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: file:./src/main/resources/keys/test-public.pem
